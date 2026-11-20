@@ -1,0 +1,3355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expert Labs: Weekly Signings &amp; PO Health Executive Dashboard</title>
+  
+  <!-- SheetJS (xlsx.full.min.js) supporting xlsx, xls, xlsm, xlsb, csv, ods) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- ExcelJS – used for the styled Executive Summary sheet in the Export Report -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Embedded Initial Data -->
+  <script src="default_data.js"></script>
+
+  <style>
+    :root {
+      --primary: #0f62fe;
+      --primary-dark: #0043ce;
+      --primary-light: #e8eeff;
+      --success: #198038;
+      --success-light: #defbe6;
+      --warning: #f1c21b;
+      --warning-dark: #8a6d00;
+      --danger: #da1e28;
+      --danger-light: #fff1f1;
+      --info: #0043ce;
+      --dark: #2D3748;
+      --gray-900: #2D3748;
+      --gray-700: #4a5568;
+      --gray-500: #718096;
+      --gray-300: #cbd5e0;
+      --gray-100: #edf2f7;
+      --bg: #B2BEB5;
+      --card-bg: #ffffff;
+      --border: #d1d9e0;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.10);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+      --radius: 8px;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg);
+      color: var(--dark);
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+
+    /* Top Navbar */
+    .header-nav {
+      background: #1a202c;
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-nav .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .header-nav .brand i {
+      color: var(--primary);
+      font-size: 1.5rem;
+    }
+    .header-nav .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header-nav .file-info-badge {
+      background: rgba(255,255,255,0.12);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-info-badge i {
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* Prominent Period & Refresh Banner */
+    .reporting-period-banner {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--primary);
+      border-radius: var(--radius);
+      padding: 1rem 1.4rem;
+      margin-bottom: 1.4rem;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .reporting-period-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .reporting-period-main .icon-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .reporting-period-text .period-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--dark);
+      letter-spacing: -0.2px;
+    }
+    .reporting-period-text .period-sub {
+      font-size: 0.8rem;
+      color: var(--gray-700);
+      margin-top: 2px;
+    }
+    .reporting-refresh-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--gray-100);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: var(--gray-900);
+      font-weight: 500;
+      border: 1px solid var(--gray-300);
+    }
+    .reporting-refresh-info i {
+      color: var(--primary);
+    }
+
+    /* Container */
+    .main-container {
+      max-width: 1540px;
+      margin: 1.5rem auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Collapsible Upload Panel */
+    .upload-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1.4rem;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .upload-panel-header {
+      padding: 0.9rem 1.4rem;
+      background: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .upload-panel-header:hover {
+      background: #f4f6f8;
+    }
+    .upload-panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: color 0.2s ease;
+    }
+    .upload-panel-header:hover .upload-panel-title,
+    .upload-panel:not(.collapsed) .upload-panel-title {
+      color: var(--primary);
+    }
+    .upload-panel-title i {
+      color: var(--primary);
+      font-size: 1.1rem;
+    }
+    .upload-panel-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: var(--gray-700);
+    }
+    .upload-toggle-icon {
+      font-size: 0.9rem;
+      color: var(--gray-500);
+      transition: transform 0.25s ease;
+    }
+    .upload-panel.collapsed .upload-toggle-icon {
+      transform: rotate(-90deg);
+    }
+    .upload-panel-body {
+      padding: 1.2rem 1.4rem 1.4rem;
+      border-top: 1px solid var(--border);
+      background: #fafbfc;
+      transition: all 0.3s ease;
+    }
+    .upload-panel.collapsed .upload-panel-body {
+      display: none;
+    }
+
+    /* Upload Section */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      margin-bottom: 1.2rem;
+    }
+    @media (max-width: 900px) {
+      .upload-grid { grid-template-columns: 1fr; }
+    }
+
+    .dropzone-card {
+      background: var(--card-bg);
+      border: 2px dashed var(--gray-300);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      text-align: center;
+      transition: all 0.2s ease;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+    }
+    .dropzone-card:hover, .dropzone-card.drag-over {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(15, 98, 254, 0.15);
+    }
+    .dropzone-card.completed-zone:hover, .dropzone-card.completed-zone.drag-over {
+      border-color: var(--success);
+      background: var(--success-light);
+      box-shadow: 0 4px 14px rgba(25, 128, 56, 0.15);
+    }
+    .dropzone-icon {
+      font-size: 2rem;
+      color: var(--primary);
+      margin-bottom: 0.4rem;
+    }
+    .completed-zone .dropzone-icon {
+      color: var(--success);
+    }
+    .dropzone-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 4px;
+    }
+    .dropzone-desc {
+      font-size: 0.82rem;
+      color: var(--gray-700);
+      margin-bottom: 0.7rem;
+    }
+    .file-btn {
+      background: var(--dark);
+      color: #fff;
+      border: none;
+      padding: 7px 16px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .file-btn:hover {
+      background: #393939;
+    }
+    .dropzone-supported {
+      margin-top: 8px;
+      font-size: 0.72rem;
+      color: var(--gray-500);
+      font-weight: 500;
+    }
+    .file-list-preview {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      text-align: left;
+      background: rgba(0,0,0,0.03);
+      padding: 6px 12px;
+      border-radius: 4px;
+      display: none;
+    }
+
+    /* Action Bar */
+    .dashboard-action-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      margin-top: 0.2rem;
+      flex-wrap: wrap;
+    }
+    .btn-clear-data {
+      background: #fff;
+      color: var(--danger);
+      border: 1.5px solid var(--danger);
+      padding: 11px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+      letter-spacing: 0.3px;
+    }
+    .btn-clear-data:hover {
+      background: var(--danger-light);
+      border-color: #b71c1c;
+      color: #b71c1c;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(218, 30, 40, 0.2);
+    }
+    .btn-clear-data:active {
+      transform: translateY(0);
+    }
+    .btn-save-snapshot {
+      background: #fff;
+      color: #2D3748;
+      border: 1.5px solid #2D3748;
+      padding: 11px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+      letter-spacing: 0.3px;
+    }
+    .btn-save-snapshot:hover {
+      background: var(--primary-dark);
+      border-color: var(--primary-dark);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 67, 206, 0.25);
+    }
+    .btn-save-snapshot:active {
+      transform: translateY(0);
+    }
+
+    /* Actionable Items Table Multi-Select Filter */
+    .table-inline-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+    .multiselect-dropdown {
+      position: relative;
+      display: inline-block;
+      user-select: none;
+    }
+    .multiselect-btn {
+      padding: 5px 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      font-size: 0.82rem;
+      background: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 170px;
+      color: var(--dark);
+      font-weight: 500;
+      transition: border-color 0.2s;
+    }
+    .multiselect-btn:hover {
+      border-color: var(--primary);
+    }
+    .multiselect-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      z-index: 100;
+      min-width: 240px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+    .multiselect-menu.open {
+      display: block;
+    }
+    .multiselect-menu-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 12px 6px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+    .multiselect-menu-header button {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .multiselect-menu-header button:hover {
+      text-decoration: underline;
+    }
+    .multiselect-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background 0.15s;
+    }
+    .multiselect-item:hover {
+      background: var(--primary-light);
+    }
+    .multiselect-item input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    /* KPI Cards */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.4rem;
+      box-shadow: var(--shadow-sm);
+      border-left: 5px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .kpi-card.kpi-danger { border-left-color: var(--danger); }
+    .kpi-card.kpi-warning { border-left-color: var(--warning-dark); }
+    .kpi-card.kpi-success { border-left-color: var(--success); }
+    .kpi-card.kpi-info { border-left-color: #8a3ffc; }
+    
+    .kpi-header {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--gray-700);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .kpi-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin: 8px 0 2px;
+    }
+    .kpi-sub {
+      font-size: 0.8rem;
+      color: var(--gray-500);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Nav Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .tab-btn i {
+      color: #FFFFFF;
+      transition: color 0.2s ease;
+    }
+    .tab-btn:hover {
+      color: var(--primary);
+    }
+    .tab-btn:hover i {
+      color: var(--primary);
+    }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    .tab-btn.active i {
+      color: var(--primary);
+    }
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--dark);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover .tab-badge {
+      background: var(--primary);
+      color: #FFFFFF;
+    }
+    .tab-btn.active .tab-badge {
+      background: var(--primary);
+      color: #FFFFFF;
+    }
+
+    /* Charts Container */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 1000px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    .chart-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chart-canvas-wrapper {
+      position: relative;
+      height: 280px;
+      width: 100%;
+    }
+
+    /* Tables Grid & Top 10 Americas Section */
+    .summary-tables-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 1100px) {
+      .summary-tables-grid { grid-template-columns: 1fr; }
+    }
+
+    .table-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .table-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .table-card-header h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .custom-table-wrapper {
+      overflow-x: auto;
+      max-height: 520px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    .custom-table th {
+      background: var(--gray-100);
+      color: var(--dark);
+      font-weight: 600;
+      padding: 10px 12px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      border-bottom: 2px solid var(--gray-300);
+      white-space: nowrap;
+    }
+    .custom-table th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    .custom-table th.sortable:hover {
+      background: var(--gray-300);
+    }
+    .custom-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: var(--dark);
+    }
+    .custom-table tr:hover {
+      background-color: #f0f4f8;
+    }
+    .custom-table tfoot td {
+      background: #e8eef5;
+      font-weight: 700;
+      border-top: 2px solid var(--gray-300);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge-past-due { background: #ffebee; color: #b71c1c; border: 1px solid #ffcdd2; }
+    .badge-current-q { background: #fff8e1; color: #f57f17; border: 1px solid #ffecb3; }
+    .badge-future-q { background: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+    .badge-pending-sign { background: #f3e5f5; color: #6a1b9a; border: 1px solid #e1bee7; }
+    .badge-completed { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+    .badge-other { background: #f5f5f5; color: #424242; border: 1px solid #e0e0e0; }
+
+    /* Filters Bar */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--card-bg);
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+      align-items: center;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 170px;
+    }
+    .filter-group label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--gray-700);
+      text-transform: uppercase;
+    }
+    .filter-input, .filter-select {
+      padding: 7px 10px;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      outline: none;
+      background: #fff;
+    }
+    .filter-input:focus, .filter-select:focus {
+      border-color: var(--primary);
+    }
+    .btn-reset {
+      margin-top: 18px;
+      padding: 7px 14px;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--gray-700);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-reset:hover {
+      background: var(--gray-300);
+    }
+    .btn-export {
+      margin-top: 18px;
+      margin-left: auto;
+      padding: 7px 14px;
+      background: var(--primary-dark);
+      border: none;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-export:hover {
+      background: var(--primary);
+    }
+
+    /* Modals & Popups for Comments / Details */
+    .comment-cell {
+      max-width: 280px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      color: var(--primary);
+    }
+    .comment-cell:hover {
+      text-decoration: underline;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 8px;
+      max-width: 650px;
+      width: 90%;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    }
+    .modal-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h4 { font-size: 1.1rem; }
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: var(--gray-500);
+    }
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #2D3748;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="header-nav">
+    <div class="brand">
+      <i class="fa-solid fa-chart-line"></i>
+      <span>Expert Labs: Weekly Signings &amp; PO Health Executive Dashboard</span>
+    </div>
+    <div class="header-right">
+      <div class="file-info-badge" id="loaded-status-badge">
+        <i class="fa-solid fa-circle-info" id="loaded-status-icon"></i>
+        <span id="loaded-status-text">No data loaded — upload files to populate</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-container">
+
+    <!-- Reporting Period & Refresh Banner -->
+    <div class="reporting-period-banner" id="reporting-period-banner">
+      <div class="reporting-period-main">
+        <div class="icon-circle">
+          <i class="fa-regular fa-calendar-check"></i>
+        </div>
+        <div class="reporting-period-text">
+          <div class="period-title" id="reporting-period-title">
+            Reporting Period: <span id="reporting-period-range">Calculating...</span>
+          </div>
+          <div class="period-sub">
+            All metrics, trends, breakdowns, and high-value deal rankings reflect this selected reporting window.
+          </div>
+        </div>
+      </div>
+      <div class="reporting-refresh-info" id="reporting-refresh-badge">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>Last Refreshed: <strong id="reporting-refresh-time">--</strong></span>
+      </div>
+    </div>
+    
+    <!-- Collapsible Upload Raw Files Panel -->
+    <div class="upload-panel collapsed" id="upload-panel">
+      <div class="upload-panel-header" id="upload-panel-header" title="Click to expand / collapse upload area">
+        <div class="upload-panel-title">
+          <i class="fa-solid fa-folder-open"></i>
+          <span>Upload Raw Files</span>
+        </div>
+        <div class="upload-panel-status">
+          <span style="font-size:0.8rem; color:var(--gray-500);">Expand/collapse to upload, replace, or manage source files</span>
+          <i class="fa-solid fa-chevron-down upload-toggle-icon" id="upload-toggle-icon"></i>
+        </div>
+      </div>
+
+      <div class="upload-panel-body" id="upload-panel-body">
+        <!-- Drag & Drop Upload Section -->
+        <div class="upload-grid">
+          <!-- Open Tasks Upload Zone -->
+          <div class="dropzone-card open-zone" id="dropzone-open">
+            <div class="dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+            <div class="dropzone-title">Upload Open / Pending Tasks</div>
+            <div class="dropzone-desc">Drag & drop spreadsheet files here or click to select</div>
+            <button class="file-btn" onclick="document.getElementById('input-file-open').click()">
+              <i class="fa-regular fa-folder-open"></i> Browse Open Tasks File(s)
+            </button>
+            <input type="file" id="input-file-open" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods" style="display:none;">
+            <div class="dropzone-supported">Supported: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods (Multiple files supported)</div>
+            <div class="file-list-preview" id="preview-open"></div>
+          </div>
+
+          <!-- Completed Tasks Upload Zone -->
+          <div class="dropzone-card completed-zone" id="dropzone-closed">
+            <div class="dropzone-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="dropzone-title">Upload Completed / Closed Tasks</div>
+            <div class="dropzone-desc">Drag & drop completed tasks spreadsheet here or click to select</div>
+            <button class="file-btn" onclick="document.getElementById('input-file-closed').click()">
+              <i class="fa-regular fa-folder-open"></i> Browse Closed Tasks File(s)
+            </button>
+            <input type="file" id="input-file-closed" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods" style="display:none;">
+            <div class="dropzone-supported">Supported: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods (Multiple files supported)</div>
+            <div class="file-list-preview" id="preview-closed"></div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="dashboard-action-bar">
+          <button class="btn-save-snapshot" id="btn-save-snapshot" title="Download a self-contained HTML file with the current dataset embedded — share it and recipients see the same data without uploading files">
+            <i class="fa-solid fa-share-nodes"></i> Save Shareable Snapshot
+          </button>
+          <button class="btn-clear-data" id="btn-clear-data" title="Remove uploaded raw files and reset data">
+            <i class="fa-solid fa-trash-can"></i> Clear
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Metric Cards -->
+    <div class="kpi-row">
+      <div class="kpi-card kpi-danger">
+        <div class="kpi-header">
+          <span>Total TCV at Risk (Open)</span>
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>
+        </div>
+        <div class="kpi-value" id="kpi-open-tcv">$0.00</div>
+        <div class="kpi-sub"><span id="kpi-open-count">0</span> Open Pending Actions</div>
+      </div>
+
+      <div class="kpi-card kpi-warning">
+        <div class="kpi-header">
+          <span>Past Due Missing PO TCV</span>
+          <i class="fa-solid fa-clock-rotate-left" style="color:var(--warning-dark)"></i>
+        </div>
+        <div class="kpi-value" id="kpi-pastdue-tcv">$0.00</div>
+        <div class="kpi-sub"><span id="kpi-pastdue-count">0</span> Cases Past Due</div>
+      </div>
+
+      <div class="kpi-card kpi-info">
+        <div class="kpi-header">
+          <span>Pending Signings TCV</span>
+          <i class="fa-solid fa-file-signature" style="color:#8a3ffc"></i>
+        </div>
+        <div class="kpi-value" id="kpi-pending-tcv">$0.00</div>
+        <div class="kpi-sub"><span id="kpi-pending-count">0</span> Deals Pending Signings</div>
+      </div>
+
+      <div class="kpi-card kpi-success">
+        <div class="kpi-header">
+          <span>Completed / Closed TCV</span>
+          <i class="fa-solid fa-circle-check" style="color:var(--success)"></i>
+        </div>
+        <div class="kpi-value" id="kpi-closed-tcv">$0.00</div>
+        <div class="kpi-sub"><span id="kpi-closed-count">0</span> Resolved Registrations</div>
+      </div>
+    </div>
+
+    <!-- Nav Tabs for Switching Views -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" data-tab="tab-overview">
+        <i class="fa-solid fa-chart-pie"></i> Executive Summary & Analytics
+      </button>
+      <button class="tab-btn" data-tab="tab-top10">
+        <i class="fa-solid fa-ranking-star"></i> Top 10 High-Value Cases
+      </button>
+      <button class="tab-btn" data-tab="tab-open">
+        <i class="fa-solid fa-list-check"></i> Open Tasks Table
+        <span class="tab-badge" id="badge-open-count">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-closed">
+        <i class="fa-solid fa-circle-check"></i> Closed Tasks Table
+        <span class="tab-badge" id="badge-closed-count">0</span>
+      </button>
+    </div>
+
+    <!-- Filter Control Bar (Applied across tables) -->
+    <div class="filter-bar">
+      <div class="filter-group" style="flex: 1.5; min-width: 220px;">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Search (Account / Agreement / Comments)</label>
+        <input type="text" id="filter-search" class="filter-input" placeholder="Type keyword to filter...">
+      </div>
+
+      <div class="filter-group">
+        <label>Market / Region</label>
+        <select id="filter-market" class="filter-select">
+          <option value="">All Markets</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Sales Manager Assigned</label>
+        <select id="filter-manager" class="filter-select">
+          <option value="">All Sales Managers</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Status / Category</label>
+        <select id="filter-category" class="filter-select">
+          <option value="">All Statuses</option>
+        </select>
+      </div>
+
+      <button class="btn-reset" id="btn-reset-filters">
+        <i class="fa-solid fa-rotate-left"></i> Reset
+      </button>
+
+      <button class="btn-export" id="btn-export-report" title="Export a single Excel file with three tabs: Executive Summary, Open Tasks, and Closed Tasks">
+        <i class="fa-solid fa-file-excel"></i> Export Report
+      </button>
+    </div>
+
+    <!-- TAB 1: EXECUTIVE OVERVIEW -->
+    <div id="tab-overview" class="tab-pane active">
+      
+      <!-- Americas Summary Tables (Actionable Items Summary & Pending Signings by Sales Manager) -->
+      <div class="summary-tables-grid">
+        <!-- Status / Category Summary with Multi-Select Filter -->
+        <div class="table-card">
+          <div class="table-card-header">
+            <h3><i class="fa-solid fa-table-list" style="color:var(--primary)"></i> Actionable Items Summary</h3>
+            <div class="table-inline-filter">
+              <span style="font-size:0.75rem; font-weight:600; color:var(--gray-700);">Filter:</span>
+              <div class="multiselect-dropdown" id="actionable-multiselect">
+                <button type="button" class="multiselect-btn" id="actionable-multiselect-btn">
+                  <span id="actionable-multiselect-label">All Categories</span>
+                  <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; color:var(--gray-500);"></i>
+                </button>
+                <div class="multiselect-menu" id="actionable-multiselect-menu">
+                  <div class="multiselect-menu-header">
+                    <span>Select Categories</span>
+                    <div>
+                      <button type="button" id="btn-select-all-cat">All</button> |
+                      <button type="button" id="btn-clear-all-cat">Clear</button>
+                    </div>
+                  </div>
+                  <div id="actionable-multiselect-options">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="custom-table-wrapper">
+            <table class="custom-table" id="table-category-summary">
+              <thead>
+                <tr>
+                  <th>Status / Category</th>
+                  <th style="text-align:right">Count</th>
+                  <th style="text-align:right">TCV at Risk</th>
+                </tr>
+              </thead>
+              <tbody><!-- Populated dynamically --></tbody>
+              <tfoot>
+                <tr>
+                  <td>Grand Total</td>
+                  <td id="cat-total-count" style="text-align:right">0</td>
+                  <td id="cat-total-tcv" style="text-align:right">$0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sales Manager Breakdown (Avg Age column removed) -->
+        <div class="table-card">
+          <div class="table-card-header">
+            <h3><i class="fa-solid fa-user-tie" style="color:var(--primary)"></i> Pending Signings by Sales Manager</h3>
+          </div>
+          <div class="custom-table-wrapper">
+            <table class="custom-table" id="table-manager-summary">
+              <thead>
+                <tr>
+                  <th>Sales Manager Assigned</th>
+                  <th style="text-align:right">Count</th>
+                  <th style="text-align:right">Sum of TCV at Risk</th>
+                </tr>
+              </thead>
+              <tbody><!-- Populated dynamically --></tbody>
+              <tfoot>
+                <tr>
+                  <td>Grand Total</td>
+                  <td id="mgr-total-count" style="text-align:right">0</td>
+                  <td id="mgr-total-tcv" style="text-align:right">$0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><span><i class="fa-solid fa-chart-pie" style="color:var(--primary); margin-right:6px;"></i> HS vs SS Records Breakdown (Count &amp; %)</span></h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="chart-hs-ss"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3><span><i class="fa-solid fa-chart-pie" style="color:var(--primary); margin-right:6px;"></i> TCV at Risk by Status / Category</span></h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="chart-category"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3><span><i class="fa-solid fa-chart-column" style="color:var(--primary); margin-right:6px;"></i> TCV at Risk by Sales Manager</span></h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="chart-manager"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3><span><i class="fa-solid fa-earth-americas" style="color:var(--primary); margin-right:6px;"></i> TCV at Risk by Market</span></h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="chart-market"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card" style="grid-column: 1 / -1;">
+          <h3><span><i class="fa-solid fa-list-ol" style="color:var(--primary); margin-right:6px;"></i> Top 10 Agreement Task Reasons (Count)</span></h3>
+          <div class="chart-canvas-wrapper" style="height:360px;">
+            <canvas id="chart-task-reason"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 2: DETAILED OPEN TASKS TABLE -->
+    <div id="tab-open" class="tab-pane" style="display:none;">
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-list-check" style="color:var(--primary)"></i> Open Tasks Details (<span id="open-table-count">0</span> items)</h3>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table" id="table-open-details">
+            <thead>
+              <tr>
+                <th class="sortable" onclick="sortTable('open', 'Agreement Number')">Agreement #</th>
+                <th class="sortable" onclick="sortTable('open', 'Market')">Market</th>
+                <th class="sortable" onclick="sortTable('open', 'Account')">Account</th>
+                <th class="sortable" onclick="sortTable('open', 'TCV at Risk')" style="text-align:right;">TCV at Risk</th>
+                <th class="sortable" onclick="sortTable('open', 'Assigned')">Assigned</th>
+                <th class="sortable" onclick="sortTable('open', 'Sales Manager Assigned')">Sales Manager</th>
+                <th class="sortable" onclick="sortTable('open', 'Age (days)')" style="text-align:right;">Age (Days)</th>
+                <th class="sortable" onclick="sortTable('open', 'Status / Category')">Status / Category</th>
+                <th class="sortable" onclick="sortTable('open', 'Agreement Task Reason')">Task Reason</th>
+                <th>Comments</th>
+                <th class="sortable" onclick="sortTable('open', 'Task Number')">Task Number</th>
+                <th class="sortable" onclick="sortTable('open', 'Created By')">Created By</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-open-tasks">
+              <!-- Populated dynamically -->
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Grand Total (<span id="open-tfoot-count">0</span> items)</strong></td>
+                <td id="open-tfoot-tcv" style="text-align:right; font-weight:700;">$0.00</td>
+                <td colspan="2"></td>
+                <td id="open-tfoot-age" style="text-align:right; font-weight:700;">-</td>
+                <td colspan="5"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DETAILED CLOSED TASKS TABLE -->
+    <div id="tab-closed" class="tab-pane" style="display:none;">
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Closed Tasks Details (<span id="closed-table-count">0</span> items)</h3>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table" id="table-closed-details">
+            <thead>
+              <tr>
+                <th class="sortable" onclick="sortTable('closed', 'Agreement Number')">Agreement #</th>
+                <th class="sortable" onclick="sortTable('closed', 'Market')">Market</th>
+                <th class="sortable" onclick="sortTable('closed', 'Account')">Account</th>
+                <th class="sortable" onclick="sortTable('closed', 'TCV at Risk')" style="text-align:right;">TCV at Risk</th>
+                <th class="sortable" onclick="sortTable('closed', 'Assigned')">Assigned</th>
+                <th class="sortable" onclick="sortTable('closed', 'Sales Manager Assigned')">Sales Manager</th>
+                <th class="sortable" onclick="sortTable('closed', 'Age (days)')" style="text-align:right;">Age (Days)</th>
+                <th class="sortable" onclick="sortTable('closed', 'Status')">Status</th>
+                <th class="sortable" onclick="sortTable('closed', 'Status / Category')">Status / Category</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-closed-tasks">
+              <!-- Populated dynamically -->
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Grand Total (<span id="closed-tfoot-count">0</span> items)</strong></td>
+                <td id="closed-tfoot-tcv" style="text-align:right; font-weight:700;">$0.00</td>
+                <td colspan="2"></td>
+                <td id="closed-tfoot-age" style="text-align:right; font-weight:700;">-</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: TOP 10 CASES -->
+    <div id="tab-top10" class="tab-pane" style="display:none;">
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-file-signature" style="color:#8a3ffc"></i> Americas Top 10 cases - PENDING Signings</h3>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table" id="table-top10-signings">
+            <thead>
+              <tr>
+                <th>Agreement Number</th>
+                <th>Market</th>
+                <th>Account</th>
+                <th style="text-align:right;">TCV at Risk</th>
+                <th>Assigned</th>
+                <th>Sales Manager Assigned</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Grand Total</strong></td>
+                <td id="top10-signings-total-tcv" style="text-align:right; font-weight:700;">$0.00</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--danger)"></i> Americas Top 10 cases - PENDING Missing PO Past Due</h3>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table" id="table-top10-pastdue">
+            <thead>
+              <tr>
+                <th>Agreement Number</th>
+                <th>Market</th>
+                <th>Account</th>
+                <th style="text-align:right;">TCV at Risk</th>
+                <th>Assigned</th>
+                <th>Sales Manager Assigned</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Grand Total</strong></td>
+                <td id="top10-pastdue-total-tcv" style="text-align:right; font-weight:700;">$0.00</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3><i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Americas Top 10 cases – CLOSED</h3>
+        </div>
+        <div class="custom-table-wrapper">
+          <table class="custom-table" id="table-top10-closed">
+            <thead>
+              <tr>
+                <th>Agreement Number</th>
+                <th>Market</th>
+                <th>Account</th>
+                <th style="text-align:right;">TCV at Risk</th>
+                <th>Assigned</th>
+                <th>Sales Manager Assigned</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>Grand Total</strong></td>
+                <td id="top10-closed-total-tcv" style="text-align:right; font-weight:700;">$0.00</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal for Full Comments / Record Details -->
+  <div class="modal-overlay" id="comment-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h4 id="modal-title">Task Comments & Details</h4>
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-content"></div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Note: All metrics, trends, and health indicators displayed in this dashboard are based on data available for the selected reporting period and are subject to source system refresh schedules.
+  </div>
+
+  <script>
+    // Global Data Store
+    let openTasksData = [];
+    let closedTasksData = [];
+    // Metadata set when opening a shareable snapshot; null in the live dashboard.
+    let snapshotMeta = null;
+    let sortState = {
+      open: { key: 'TCV at Risk', asc: false },
+      closed: { key: 'TCV at Risk', asc: false }
+    };
+
+    // Chart instances
+    let chartHsSs = null;
+    let chartCat = null;
+    let chartMgr = null;
+    let chartMkt = null;
+    let chartTaskReason = null;
+
+    // Helper: Validate if a record is a real task row (excludes rows without agreement number, totals, or copyright footer rows)
+    function isValidTaskRecord(item) {
+      if (!item || typeof item !== 'object') return false;
+      const agRaw = (item['Agreement Number'] || '').toString().trim();
+      if (!agRaw || agRaw === '-' || agRaw === 'N/A') return false;
+
+      const agLower = agRaw.toLowerCase();
+      const accLower = (item['Account'] || '').toString().trim().toLowerCase();
+      const mktLower = (item['Market'] || '').toString().trim().toLowerCase();
+
+      // Check if row pertains to total / summary rows
+      if (agLower === 'total' || agLower === 'grand total' || agLower.startsWith('total') || agLower.startsWith('grand total') || agLower.startsWith('sub-total') || agLower.startsWith('subtotal')) return false;
+      if (accLower === 'total' || accLower === 'grand total' || accLower.startsWith('total') || accLower.startsWith('grand total') || accLower.startsWith('sub-total') || accLower.startsWith('subtotal')) return false;
+      if (mktLower === 'total' || mktLower === 'grand total' || mktLower.startsWith('total') || mktLower.startsWith('grand total')) return false;
+
+      // Check if row is raw report footer / disclaimer metadata (e.g., Confidential Information, Copyright salesforce.com, etc.)
+      if (agLower.includes('confidential') || agLower.includes('copyright') || agLower.includes('salesforce.com') || agLower.includes('rights reserved')) return false;
+      if (accLower.includes('confidential') || accLower.includes('copyright') || accLower.includes('salesforce.com') || accLower.includes('rights reserved')) return false;
+
+      return true;
+    }
+
+    // Helper: format currency
+    function fmtCurrency(val) {
+      const num = parseFloat(val) || 0;
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Helper: Clean status badge
+    function getStatusBadge(status) {
+      if (!status) return `<span class="badge badge-other">N/A</span>`;
+      const s = status.toLowerCase();
+      if (s.includes('past due')) return `<span class="badge badge-past-due">${status}</span>`;
+      if (s.includes('current quarter')) return `<span class="badge badge-current-q">${status}</span>`;
+      if (s.includes('future quarter')) return `<span class="badge badge-future-q">${status}</span>`;
+      if (s.includes('pending signings') || s.includes('signing')) return `<span class="badge badge-pending-sign">${status}</span>`;
+      if (s.includes('completed') || s.includes('closed')) return `<span class="badge badge-completed">${status}</span>`;
+      return `<span class="badge badge-other">${status}</span>`;
+    }
+
+    // Init — seed from embedded snapshot data when present, otherwise start empty.
+    window.addEventListener('DOMContentLoaded', () => {
+      // If a snapshot was distributed, window.DEFAULT_DATA contains the baked-in
+      // dataset. Restore it so recipients see exactly what the creator saw.
+      if (window.DEFAULT_DATA) {
+        const d = window.DEFAULT_DATA;
+        if (Array.isArray(d.openTasks) && d.openTasks.length)   openTasksData  = d.openTasks;
+        if (Array.isArray(d.closedTasks) && d.closedTasks.length) closedTasksData = d.closedTasks;
+        if (d.snapshotMeta) snapshotMeta = d.snapshotMeta;
+      }
+      setupEventListeners();
+      populateFilterOptions();
+      refreshDashboard();
+    });
+
+    // Setup Tabs and UI Event Listeners
+    function setupEventListeners() {
+      // Collapsible Upload Panel Toggle
+      const uploadHeader = document.getElementById('upload-panel-header');
+      const uploadPanel = document.getElementById('upload-panel');
+      if (uploadHeader && uploadPanel) {
+        uploadHeader.addEventListener('click', () => {
+          uploadPanel.classList.toggle('collapsed');
+        });
+      }
+
+      // Tab switching
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+          btn.classList.add('active');
+          const target = document.getElementById(btn.getAttribute('data-tab'));
+          if (target) target.style.display = 'block';
+        });
+      });
+
+      // Filters
+      document.getElementById('filter-search').addEventListener('input', applyFiltersAndRender);
+      document.getElementById('filter-market').addEventListener('change', applyFiltersAndRender);
+      document.getElementById('filter-manager').addEventListener('change', applyFiltersAndRender);
+      document.getElementById('filter-category').addEventListener('change', (e) => {
+        const val = e.target.value;
+        selectedActionableCategories = val ? [val] : [];
+        updateActionableMultiSelectUI();
+        applyFiltersAndRender();
+      });
+
+      // Toggle multi-select menu
+      const multiBtn = document.getElementById('actionable-multiselect-btn');
+      const multiMenu = document.getElementById('actionable-multiselect-menu');
+      multiBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        multiMenu.classList.toggle('open');
+      });
+
+      // Close multi-select menu on outside click
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#actionable-multiselect')) {
+          multiMenu.classList.remove('open');
+        }
+      });
+
+      // Select All / Clear buttons in multi-select menu
+      document.getElementById('btn-select-all-cat').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedActionableCategories = []; // Empty means all selected
+        document.getElementById('filter-category').value = '';
+        updateActionableMultiSelectUI();
+        applyFiltersAndRender();
+      });
+
+      document.getElementById('btn-clear-all-cat').addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Select none
+        selectedActionableCategories = ['__NONE__'];
+        document.getElementById('filter-category').value = '';
+        updateActionableMultiSelectUI();
+        applyFiltersAndRender();
+      });
+
+      document.getElementById('btn-reset-filters').addEventListener('click', () => {
+        document.getElementById('filter-search').value = '';
+        document.getElementById('filter-market').value = '';
+        document.getElementById('filter-manager').value = '';
+        document.getElementById('filter-category').value = '';
+        selectedActionableCategories = [];
+        updateActionableMultiSelectUI();
+        applyFiltersAndRender();
+      });
+
+      // Clear uploaded raw files and reset
+      document.getElementById('btn-clear-data').addEventListener('click', () => {
+        // Reset file input elements
+        document.getElementById('input-file-open').value = '';
+        document.getElementById('input-file-closed').value = '';
+
+        // Hide and clear file preview messages
+        const previewOpen = document.getElementById('preview-open');
+        const previewClosed = document.getElementById('preview-closed');
+        previewOpen.style.display = 'none';
+        previewOpen.innerHTML = '';
+        previewClosed.style.display = 'none';
+        previewClosed.innerHTML = '';
+
+        // Reset data structures to empty or default state
+        openTasksData = [];
+        closedTasksData = [];
+
+        // Update top status indicator badge
+        document.getElementById('loaded-status-text').textContent = 'No data loaded — upload files to populate';
+        const iconEl = document.getElementById('loaded-status-icon');
+        if (iconEl) { iconEl.className = 'fa-solid fa-circle-info'; iconEl.style.color = ''; }
+
+        // Clear filter controls
+        document.getElementById('filter-search').value = '';
+        document.getElementById('filter-market').value = '';
+        document.getElementById('filter-manager').value = '';
+        document.getElementById('filter-category').value = '';
+        selectedActionableCategories = [];
+        updateActionableMultiSelectUI();
+
+        // Repopulate and refresh view
+        populateFilterOptions();
+        applyFiltersAndRender();
+
+        // Visual feedback
+        const btnClear = document.getElementById('btn-clear-data');
+        const origClear = btnClear.innerHTML;
+        btnClear.innerHTML = `<i class="fa-solid fa-check"></i> Cleared!`;
+        setTimeout(() => {
+          btnClear.innerHTML = origClear;
+        }, 1200);
+      });
+
+      // Export Report button (combined: Executive Summary + Open Tasks + Closed Tasks)
+      document.getElementById('btn-export-report').addEventListener('click', exportReport);
+
+      // Save Shareable Snapshot button
+      document.getElementById('btn-save-snapshot').addEventListener('click', saveShareableSnapshot);
+
+      // Modal close
+      document.getElementById('modal-close-btn').addEventListener('click', () => {
+        document.getElementById('comment-modal').classList.remove('open');
+      });
+      document.getElementById('comment-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'comment-modal') document.getElementById('comment-modal').classList.remove('open');
+      });
+
+      // Setup Drag and Drop
+      setupDropzone('dropzone-open', 'input-file-open', 'preview-open', 'open');
+      setupDropzone('dropzone-closed', 'input-file-closed', 'preview-closed', 'closed');
+    }
+
+    // Prevent browser default file open on drag & drop across whole page
+    window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
+    window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
+
+    // Setup standard dropzone & file selection
+    function setupDropzone(zoneId, inputId, previewId, taskType) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+
+      // Drag Enter
+      zone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.add('drag-over');
+      });
+
+      // Drag Over
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+        zone.classList.add('drag-over');
+      });
+
+      // Drag Leave
+      zone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.remove('drag-over');
+      });
+
+      // Drop
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.remove('drag-over');
+
+        const files = e.dataTransfer ? e.dataTransfer.files : null;
+        if (files && files.length > 0) {
+          handleFiles(files, taskType, preview);
+        }
+      });
+
+      // File Browser Button / Input Change
+      input.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+          handleFiles(files, taskType, preview);
+        }
+      });
+    }
+
+    // Read and parse uploaded files
+    async function handleFiles(files, taskType, previewElem) {
+      const parsedRecords = [];
+      const fileNames = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        fileNames.push(file.name);
+        try {
+          const records = await parseSpreadsheetFile(file, taskType);
+          parsedRecords.push(...records);
+        } catch (err) {
+          console.error(`Error parsing ${file.name}:`, err);
+          alert(`Could not parse ${file.name}: ` + err.message);
+        }
+      }
+
+      if (parsedRecords.length > 0) {
+        if (taskType === 'open') {
+          openTasksData = parsedRecords;
+        } else {
+          closedTasksData = parsedRecords;
+        }
+
+        previewElem.style.display = 'block';
+        previewElem.innerHTML = `<strong>Loaded ${parsedRecords.length} records</strong> from ${fileNames.join(', ')}`;
+        
+        document.getElementById('loaded-status-text').textContent = `Files Loaded (${taskType === 'open' ? 'Open' : 'Closed'} Tasks Updated)`;
+        const iconEl = document.getElementById('loaded-status-icon');
+        if (iconEl) { iconEl.className = 'fa-solid fa-circle-check'; iconEl.style.color = '#42be65'; }
+        populateFilterOptions();
+        refreshDashboard();
+      }
+    }
+
+    // Helper: Parse any date string or Excel serial number into a JS Date object
+    function parseDateValue(val) {
+      if (!val) return null;
+      if (typeof val === 'number') {
+        // Excel serial date to JS Date
+        return new Date(Math.round((val - 25569) * 86400 * 1000));
+      }
+      const str = val.toString().trim();
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) return d;
+      // Handle MM/DD/YYYY or DD/MM/YYYY formats
+      const parts = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+      if (parts) {
+        const p1 = parseInt(parts[1], 10);
+        const p2 = parseInt(parts[2], 10);
+        let year = parseInt(parts[3], 10);
+        if (year < 100) year += 2000;
+        return new Date(year, p1 - 1, p2);
+      }
+      return null;
+    }
+
+    // Helper: Get Saturday to Friday week range for a reference date
+    function getWeekRangeSaturdayToFriday(refDate) {
+      const day = refDate.getDay(); // 0: Sun, 1: Mon, ... 5: Fri, 6: Sat
+      // Calculate offset to most recent Saturday (or today if Saturday)
+      const diffToSat = (day + 1) % 7;
+      const saturday = new Date(refDate);
+      saturday.setDate(refDate.getDate() - diffToSat);
+      saturday.setHours(0, 0, 0, 0);
+
+      const friday = new Date(saturday);
+      friday.setDate(saturday.getDate() + 6);
+      friday.setHours(23, 59, 59, 999);
+
+      return { start: saturday, end: friday };
+    }
+
+    // Process raw 2D array for Completed Tasks following rules 1 to 6
+    function processCompletedTasksRaw(rawRows) {
+      if (!rawRows || rawRows.length === 0) return [];
+
+      // Step 1: Remove completely blank rows
+      let nonBlankRows = rawRows.filter(row => {
+        if (!row || !Array.isArray(row)) return false;
+        return row.some(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '');
+      });
+
+      if (nonBlankRows.length === 0) return [];
+
+      // Check if file starts with metadata banner or directly with data table
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(nonBlankRows.length, 25); i++) {
+        const rowStr = nonBlankRows[i].map(c => (c || '').toString().toLowerCase()).join(' | ');
+        if (rowStr.includes('agreement number') || (rowStr.includes('account') && rowStr.includes('tcv'))) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      let dataRows = [];
+      let rawHeader = [];
+
+      if (headerRowIndex >= 18) {
+        // Step 2: Remove rows 1 to 18 (0-indexed 0 to 17)
+        const trimmed = nonBlankRows.slice(18);
+        rawHeader = trimmed[0] || [];
+        dataRows = trimmed.slice(1);
+      } else if (headerRowIndex >= 0) {
+        rawHeader = nonBlankRows[headerRowIndex] || [];
+        dataRows = nonBlankRows.slice(headerRowIndex + 1);
+      } else {
+        // Default fallback
+        rawHeader = nonBlankRows[0] || [];
+        dataRows = nonBlankRows.slice(1);
+      }
+
+      // Step 3: Delete Column A (idx 0) and Column C (idx 2 if A removed, or idx 2 originally)
+      // Check if columns A and C need dropping (e.g. if row length >= original columns)
+      let headerList = rawHeader.map(h => (h !== null && h !== undefined ? h.toString().trim() : ''));
+      let shouldDeleteColAandC = false;
+
+      // If column A does not look like Agreement Number (e.g. it is row index or extra ID column), delete A and C
+      if (headerList.length > 3 && (headerList[0] === '' || headerList[0].toLowerCase().includes('id') || !headerList[0].toLowerCase().includes('agreement'))) {
+        shouldDeleteColAandC = true;
+      }
+
+      // Convert rows to key-value objects
+      let mappedRecords = [];
+      for (const r of dataRows) {
+        if (!r || r.length === 0) continue;
+        let rowCells = [...r];
+
+        if (shouldDeleteColAandC) {
+          // Delete Column C first (index 2), then Column A (index 0)
+          if (rowCells.length > 2) rowCells.splice(2, 1);
+          if (rowCells.length > 0) rowCells.splice(0, 1);
+        }
+
+        const item = {};
+        headerList.forEach((colName, idx) => {
+          if (colName) {
+            item[colName] = rowCells[idx] !== undefined && rowCells[idx] !== null ? rowCells[idx].toString().trim() : '';
+          }
+        });
+
+        // Parse TCV
+        if (item['TCV at Risk']) {
+          item['TCV at Risk'] = parseFloat(item['TCV at Risk'].toString().replace(/[^0-9.-]+/g, '')) || 0;
+        } else {
+          item['TCV at Risk'] = 0;
+        }
+
+        if (item['Age (days)']) {
+          item['Age (days)'] = parseInt(item['Age (days)'], 10) || 0;
+        }
+
+        if (item['Agreement Number'] || item['Account']) {
+          mappedRecords.push(item);
+        }
+      }
+
+      // Step 4: Use Agreement Number as the primary duplicate identifier.
+      // When duplicates are detected, filter Agreement Task Reason and delete rows with 'HS – Missing BCC BT tagging'
+      const agreementGroups = new Map();
+      mappedRecords.forEach(rec => {
+        const agNum = (rec['Agreement Number'] || '').trim();
+        if (!agNum) {
+          // If no agreement number, group under unique random key to keep
+          agreementGroups.set(Symbol(), [rec]);
+          return;
+        }
+        if (!agreementGroups.has(agNum)) {
+          agreementGroups.set(agNum, []);
+        }
+        agreementGroups.get(agNum).push(rec);
+      });
+
+      let dedupedRecords = [];
+      agreementGroups.forEach((groupRecords, agNum) => {
+        if (groupRecords.length > 1) {
+          // Duplicate detected: delete rows with "HS – Missing BCC BT" (or tagging)
+          const filteredGroup = groupRecords.filter(rec => {
+            const reason = (rec['Agreement Task Reason'] || '').toLowerCase();
+            return !(reason.includes('missing bcc') || reason.includes('missing bcc bt'));
+          });
+          if (filteredGroup.length > 0) {
+            dedupedRecords.push(...filteredGroup);
+          } else {
+            // If all were BCC BT tagging rows, keep one
+            dedupedRecords.push(groupRecords[0]);
+          }
+        } else {
+          dedupedRecords.push(groupRecords[0]);
+        }
+      });
+
+      // Step 5: Filter Last Modified Date to the current weekending (Saturday to Friday)
+      // Find the latest reference date present in the dataset (or current date if matching current week)
+      let allValidDates = [];
+      dedupedRecords.forEach(rec => {
+        const d = parseDateValue(rec['Last Modified Date']);
+        if (d) allValidDates.push(d);
+      });
+
+      if (allValidDates.length > 0) {
+        allValidDates.sort((a, b) => b.getTime() - a.getTime());
+        const latestDate = allValidDates[0];
+        const weekRange = getWeekRangeSaturdayToFriday(latestDate);
+
+        const weekFiltered = dedupedRecords.filter(rec => {
+          const d = parseDateValue(rec['Last Modified Date']);
+          if (!d) return true; // keep if date unparseable to avoid losing records
+          return d.getTime() >= weekRange.start.getTime() && d.getTime() <= weekRange.end.getTime();
+        });
+
+        if (weekFiltered.length > 0) {
+          dedupedRecords = weekFiltered;
+        }
+      }
+
+      // Step 6: Sort TCV at Risk column from descending to ascending order (ascending)
+      dedupedRecords.sort((a, b) => {
+        const tcvA = parseFloat(a['TCV at Risk']) || 0;
+        const tcvB = parseFloat(b['TCV at Risk']) || 0;
+        return tcvA - tcvB;
+      });
+
+      return dedupedRecords;
+    }
+
+    // Process raw 2D array for Open Tasks following rules 1 to 4 and sorting
+    function processOpenTasksRaw(rawRows) {
+      if (!rawRows || rawRows.length === 0) return [];
+
+      // Step 1: Remove completely blank rows
+      let nonBlankRows = rawRows.filter(row => {
+        if (!row || !Array.isArray(row)) return false;
+        return row.some(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '');
+      });
+
+      if (nonBlankRows.length === 0) return [];
+
+      // Check if file starts with metadata banner or directly with data table
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(nonBlankRows.length, 25); i++) {
+        const rowStr = nonBlankRows[i].map(c => (c || '').toString().toLowerCase()).join(' | ');
+        if (rowStr.includes('agreement number') || (rowStr.includes('account') && rowStr.includes('tcv'))) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      let dataRows = [];
+      let rawHeader = [];
+
+      if (headerRowIndex >= 16) {
+        // Step 2: Remove rows 1 to 16 (0-indexed 0 to 15)
+        const trimmed = nonBlankRows.slice(16);
+        rawHeader = trimmed[0] || [];
+        dataRows = trimmed.slice(1);
+      } else if (headerRowIndex >= 0) {
+        rawHeader = nonBlankRows[headerRowIndex] || [];
+        dataRows = nonBlankRows.slice(headerRowIndex + 1);
+      } else {
+        rawHeader = nonBlankRows[0] || [];
+        dataRows = nonBlankRows.slice(1);
+      }
+
+      // Step 3: Delete Column A (idx 0) and Column C (idx 2) if leading metadata columns exist
+      let headerList = rawHeader.map(h => (h !== null && h !== undefined ? h.toString().trim() : ''));
+      let shouldDeleteColAandC = false;
+
+      if (headerList.length > 3 && (headerList[0] === '' || headerList[0].toLowerCase().includes('id') || !headerList[0].toLowerCase().includes('agreement'))) {
+        shouldDeleteColAandC = true;
+      }
+
+      // Convert rows to key-value objects
+      let mappedRecords = [];
+      for (const r of dataRows) {
+        if (!r || r.length === 0) continue;
+        let rowCells = [...r];
+
+        if (shouldDeleteColAandC) {
+          if (rowCells.length > 2) rowCells.splice(2, 1);
+          if (rowCells.length > 0) rowCells.splice(0, 1);
+        }
+
+        const item = {};
+        headerList.forEach((colName, idx) => {
+          if (colName) {
+            item[colName] = rowCells[idx] !== undefined && rowCells[idx] !== null ? rowCells[idx].toString().trim() : '';
+          }
+        });
+
+        // Parse TCV
+        if (item['TCV at Risk']) {
+          item['TCV at Risk'] = parseFloat(item['TCV at Risk'].toString().replace(/[^0-9.-]+/g, '')) || 0;
+        } else {
+          item['TCV at Risk'] = 0;
+        }
+
+        if (item['Age (days)']) {
+          item['Age (days)'] = parseInt(item['Age (days)'], 10) || 0;
+        }
+
+        if (isValidTaskRecord(item)) {
+          mappedRecords.push(item);
+        }
+      }
+
+      // Step 4: Use Agreement Number as the primary duplicate identifier.
+      // When duplicates are detected, filter Agreement Task Reason and delete rows with 'HS – Missing BCC BT tagging'
+      const agreementGroups = new Map();
+      mappedRecords.forEach(rec => {
+        const agNum = (rec['Agreement Number'] || '').trim();
+        if (!agNum) return; // Skip rows without valid agreement number
+        if (!agreementGroups.has(agNum)) {
+          agreementGroups.set(agNum, []);
+        }
+        agreementGroups.get(agNum).push(rec);
+      });
+
+      let dedupedRecords = [];
+      agreementGroups.forEach((groupRecords, agNum) => {
+        if (groupRecords.length > 1) {
+          const filteredGroup = groupRecords.filter(rec => {
+            const reason = (rec['Agreement Task Reason'] || '').toLowerCase();
+            return !(reason.includes('missing bcc') || reason.includes('missing bcc bt'));
+          });
+          if (filteredGroup.length > 0) {
+            dedupedRecords.push(...filteredGroup);
+          } else {
+            dedupedRecords.push(groupRecords[0]);
+          }
+        } else {
+          dedupedRecords.push(groupRecords[0]);
+        }
+      });
+
+      // Default sort TCV at Risk
+      dedupedRecords.sort((a, b) => {
+        const tcvA = parseFloat(a['TCV at Risk']) || 0;
+        const tcvB = parseFloat(b['TCV at Risk']) || 0;
+        return tcvA - tcvB;
+      });
+
+      return dedupedRecords;
+    }
+
+    // SheetJS file parser
+    function parseSpreadsheetFile(file, taskType) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Select appropriate worksheet
+            let sheetName = workbook.SheetNames[0];
+            for (const name of workbook.SheetNames) {
+              const lower = name.toLowerCase();
+              if (taskType === 'closed') {
+                if (lower.includes('closed') || lower.includes('completed')) {
+                  sheetName = name;
+                  break;
+                }
+              } else {
+                if (lower.includes('detailed') && !lower.includes('closed')) {
+                  sheetName = name;
+                  break;
+                }
+              }
+            }
+            
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) {
+              resolve([]);
+              return;
+            }
+
+            // Extract rows as 2D array
+            const rawJson = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            if (!rawJson || rawJson.length === 0) {
+              resolve([]);
+              return;
+            }
+
+            // Find data header row
+            let headerRowIdx = -1;
+            for (let r = 0; r < Math.min(rawJson.length, 30); r++) {
+              const row = rawJson[r];
+              if (!row || !Array.isArray(row)) continue;
+              const rowStr = row.map(c => (c || '').toString().toLowerCase()).join(' ');
+              if (rowStr.includes('agreement') && (rowStr.includes('account') || rowStr.includes('market') || rowStr.includes('tcv'))) {
+                headerRowIdx = r;
+                break;
+              }
+            }
+
+            if (headerRowIdx === -1) {
+              // Try finding row with at least 3 non-empty text strings
+              for (let r = 0; r < Math.min(rawJson.length, 25); r++) {
+                const row = rawJson[r];
+                if (row && row.filter(c => typeof c === 'string' && c.trim().length > 0).length >= 3) {
+                  headerRowIdx = r;
+                  break;
+                }
+              }
+            }
+
+            if (headerRowIdx === -1) headerRowIdx = 0;
+
+            const headers = rawJson[headerRowIdx].map(h => (h !== null && h !== undefined ? h.toString().trim() : ''));
+            const items = [];
+
+            for (let r = headerRowIdx + 1; r < rawJson.length; r++) {
+              const row = rawJson[r];
+              if (!row || row.length === 0) continue;
+              if (row.every(c => c === null || c === undefined || c.toString().trim() === '')) continue;
+
+              const item = {};
+              headers.forEach((h, idx) => {
+                if (h) {
+                  item[h] = row[idx] !== undefined && row[idx] !== null ? row[idx].toString().trim() : '';
+                }
+              });
+
+              // Clean numeric fields
+              if (item['TCV at Risk']) {
+                item['TCV at Risk'] = parseFloat(item['TCV at Risk'].toString().replace(/[^0-9.-]+/g, '')) || 0;
+              } else {
+                item['TCV at Risk'] = 0;
+              }
+
+              if (item['Age (days)']) {
+                item['Age (days)'] = parseInt(item['Age (days)'], 10) || 0;
+              }
+
+              // Check and exclude rows without agreement number or raw sheet summary / Total / footer rows
+              if (isValidTaskRecord(item)) {
+                items.push(item);
+              }
+            }
+
+            // Apply deduplication by Agreement Number (delete HS – Missing BCC BT tagging if duplicates exist)
+            const agreementGroups = new Map();
+            items.forEach(rec => {
+              const agNum = (rec['Agreement Number'] || '').trim();
+              if (!agNum) return; // Skip rows without valid agreement number
+              if (!agreementGroups.has(agNum)) {
+                agreementGroups.set(agNum, []);
+              }
+              agreementGroups.get(agNum).push(rec);
+            });
+
+            let finalRecords = [];
+            agreementGroups.forEach((groupRecords) => {
+              if (groupRecords.length > 1) {
+                const filteredGroup = groupRecords.filter(rec => {
+                  const reason = (rec['Agreement Task Reason'] || '').toLowerCase();
+                  return !(reason.includes('missing bcc') || reason.includes('missing bcc bt'));
+                });
+                if (filteredGroup.length > 0) {
+                  finalRecords.push(...filteredGroup);
+                } else {
+                  finalRecords.push(groupRecords[0]);
+                }
+              } else {
+                finalRecords.push(groupRecords[0]);
+              }
+            });
+
+            // If Closed tasks, apply week ending filter
+            if (taskType === 'closed') {
+              let allDates = [];
+              finalRecords.forEach(rec => {
+                const d = parseDateValue(rec['Last Modified Date']);
+                if (d) allDates.push(d);
+              });
+              if (allDates.length > 0) {
+                allDates.sort((a, b) => b.getTime() - a.getTime());
+                const latestDate = allDates[0];
+                const weekRange = getWeekRangeSaturdayToFriday(latestDate);
+                const weekFiltered = finalRecords.filter(rec => {
+                  const d = parseDateValue(rec['Last Modified Date']);
+                  if (!d) return true;
+                  return d.getTime() >= weekRange.start.getTime() && d.getTime() <= weekRange.end.getTime();
+                });
+                if (weekFiltered.length > 0) {
+                  finalRecords = weekFiltered;
+                }
+              }
+            }
+
+            // Sort TCV at Risk
+            finalRecords.sort((a, b) => {
+              const tcvA = parseFloat(a['TCV at Risk']) || 0;
+              const tcvB = parseFloat(b['TCV at Risk']) || 0;
+              return tcvA - tcvB;
+            });
+
+            resolve(finalRecords);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    let availableCategoriesList = [];
+    let selectedActionableCategories = []; // [] means all selected
+
+    // Populate dropdown filter options dynamically
+    function populateFilterOptions() {
+      const allTasks = [...openTasksData, ...closedTasksData];
+      const markets = new Set();
+      const managers = new Set();
+      const categories = new Set();
+
+      allTasks.forEach(t => {
+        if (t['Market']) markets.add(t['Market']);
+        if (t['Sales Manager Assigned']) managers.add(t['Sales Manager Assigned']);
+        if (t['Status / Category']) categories.add(t['Status / Category']);
+      });
+
+      availableCategoriesList = Array.from(categories).sort();
+      populateSelect('filter-market', Array.from(markets).sort());
+      populateSelect('filter-manager', Array.from(managers).sort());
+      populateSelect('filter-category', availableCategoriesList);
+      populateActionableMultiSelectOptions();
+    }
+
+    function populateActionableMultiSelectOptions() {
+      const container = document.getElementById('actionable-multiselect-options');
+      if (!container) return;
+
+      container.innerHTML = availableCategoriesList.map(cat => {
+        const isChecked = selectedActionableCategories.length === 0 || selectedActionableCategories.includes(cat);
+        return `
+          <label class="multiselect-item" onclick="event.stopPropagation();">
+            <input type="checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} onchange="onActionableCategoryToggle(this)">
+            <span>${escapeHtml(cat)}</span>
+          </label>
+        `;
+      }).join('');
+
+      updateActionableMultiSelectUI();
+    }
+
+    function onActionableCategoryToggle(checkbox) {
+      const val = checkbox.value;
+      if (selectedActionableCategories.length === 0) {
+        // Was all selected, now everything except unticked
+        selectedActionableCategories = availableCategoriesList.filter(c => c !== val);
+      } else if (selectedActionableCategories.includes('__NONE__')) {
+        selectedActionableCategories = [val];
+      } else {
+        if (checkbox.checked) {
+          if (!selectedActionableCategories.includes(val)) selectedActionableCategories.push(val);
+          if (selectedActionableCategories.length === availableCategoriesList.length) {
+            selectedActionableCategories = []; // all selected
+          }
+        } else {
+          selectedActionableCategories = selectedActionableCategories.filter(c => c !== val);
+          if (selectedActionableCategories.length === 0) {
+            selectedActionableCategories = ['__NONE__'];
+          }
+        }
+      }
+
+      // Sync global category dropdown if exactly 1 is selected or none
+      if (selectedActionableCategories.length === 1 && selectedActionableCategories[0] !== '__NONE__') {
+        document.getElementById('filter-category').value = selectedActionableCategories[0];
+      } else {
+        document.getElementById('filter-category').value = '';
+      }
+
+      updateActionableMultiSelectUI();
+      applyFiltersAndRender();
+    }
+
+    function updateActionableMultiSelectUI() {
+      const label = document.getElementById('actionable-multiselect-label');
+      if (!label) return;
+
+      if (selectedActionableCategories.length === 0 || selectedActionableCategories.length === availableCategoriesList.length) {
+        label.textContent = 'All Categories (' + availableCategoriesList.length + ')';
+      } else if (selectedActionableCategories.includes('__NONE__') || selectedActionableCategories.length === 0) {
+        label.textContent = 'None Selected (0)';
+      } else if (selectedActionableCategories.length === 1) {
+        label.textContent = selectedActionableCategories[0];
+      } else {
+        label.textContent = `${selectedActionableCategories.length} Categories Selected`;
+      }
+
+      // Refresh checkboxes in dropdown menu
+      const checkboxes = document.querySelectorAll('#actionable-multiselect-options input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        if (selectedActionableCategories.length === 0) {
+          cb.checked = true;
+        } else if (selectedActionableCategories.includes('__NONE__')) {
+          cb.checked = false;
+        } else {
+          cb.checked = selectedActionableCategories.includes(cb.value);
+        }
+      });
+    }
+
+    function populateSelect(id, values) {
+      const select = document.getElementById(id);
+      const current = select.value;
+      const defaultText = select.options[0].text;
+      select.innerHTML = `<option value="">${defaultText}</option>`;
+      values.forEach(v => {
+        if (v) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          select.appendChild(opt);
+        }
+      });
+      select.value = current;
+    }
+
+    // Format Date helper: "MMM D, YYYY" (e.g. Aug 30, 2026)
+    function formatDateDisplay(d) {
+      if (!d || isNaN(d.getTime())) return '';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    }
+
+    // Format Date & Time helper: "MMM D, YYYY, h:mm:ss A"
+    function formatDateTimeDisplay(d) {
+      if (!d || isNaN(d.getTime())) return '';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // 0 becomes 12
+      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${hours}:${minutes}:${seconds} ${ampm}`;
+    }
+
+    // Compute and display the prominent Reporting Period and Last Refreshed Date/Time
+    function updateReportingPeriodAndRefresh() {
+      const periodRangeElem = document.getElementById('reporting-period-range');
+      const refreshElem     = document.getElementById('reporting-refresh-time');
+
+      // When running from a shareable snapshot, use the locked metadata so that
+      // recipients see exactly the same reporting period and creation timestamp as
+      // the original creator — regardless of when they open the file.
+      if (snapshotMeta) {
+        if (snapshotMeta.reportingPeriodRange) {
+          periodRangeElem.textContent = snapshotMeta.reportingPeriodRange;
+        }
+        if (snapshotMeta.snapshotCreatedAt) {
+          const createdAt = new Date(snapshotMeta.snapshotCreatedAt);
+          refreshElem.textContent = formatDateTimeDisplay(createdAt);
+        }
+        return; // Do not recompute from live dates
+      }
+
+      // Live dashboard: derive period from the most recent date in the dataset.
+      let allDates = [];
+
+      const collectDates = (records) => {
+        records.forEach(r => {
+          if (r['Last Modified Date']) {
+            const d = parseDateValue(r['Last Modified Date']);
+            if (d && !isNaN(d.getTime())) allDates.push(d);
+          }
+          if (r['Created Date']) {
+            const d = parseDateValue(r['Created Date']);
+            if (d && !isNaN(d.getTime())) allDates.push(d);
+          }
+        });
+      };
+
+      collectDates(closedTasksData);
+      collectDates(openTasksData);
+
+      if (allDates.length > 0) {
+        allDates.sort((a, b) => b.getTime() - a.getTime());
+        const latestDate = allDates[0];
+        // Calculate Saturday to Friday week-ending reporting period
+        const weekRange = getWeekRangeSaturdayToFriday(latestDate);
+        const startDateStr = formatDateDisplay(weekRange.start);
+        const endDateStr   = formatDateDisplay(weekRange.end);
+        periodRangeElem.textContent = `${startDateStr} – ${endDateStr}`;
+      } else {
+        periodRangeElem.textContent = 'All Active Pending & Completed Records';
+      }
+
+      // Set Last Refreshed to now (live mode only)
+      refreshElem.textContent = formatDateTimeDisplay(new Date());
+    }
+
+    // Refresh KPI counts, summaries, charts, and tables
+    function refreshDashboard() {
+      updateReportingPeriodAndRefresh();
+
+      // When loaded from a snapshot, update the header status badge to indicate
+      // this is a read-only historical view, not a live data session.
+      if (snapshotMeta) {
+        const statusText = document.getElementById('loaded-status-text');
+        const iconEl     = document.getElementById('loaded-status-icon');
+        if (statusText) {
+          const createdAt = snapshotMeta.snapshotCreatedAt
+            ? formatDateTimeDisplay(new Date(snapshotMeta.snapshotCreatedAt))
+            : '';
+          statusText.textContent = `Snapshot View${createdAt ? ' — Created ' + createdAt : ''}`;
+        }
+        if (iconEl) { iconEl.className = 'fa-solid fa-clock-rotate-left'; iconEl.style.color = '#8a3ffc'; }
+      }
+
+      applyFiltersAndRender();
+    }
+
+    // Apply Filter & Render Everything
+    function applyFiltersAndRender() {
+      const search = (document.getElementById('filter-search').value || '').toLowerCase();
+      const selMarket = document.getElementById('filter-market').value;
+      const selManager = document.getElementById('filter-manager').value;
+      const selCat = document.getElementById('filter-category').value;
+
+      const filterFn = (item) => {
+        if (!isValidTaskRecord(item)) return false;
+        if (selMarket && item['Market'] !== selMarket) return false;
+        if (selManager && item['Sales Manager Assigned'] !== selManager) return false;
+
+        const itemCat = item['Status / Category'] || '';
+        // Multi-select category filter check
+        if (selectedActionableCategories.length > 0) {
+          if (selectedActionableCategories.includes('__NONE__')) return false;
+          if (!selectedActionableCategories.includes(itemCat)) return false;
+        } else if (selCat && itemCat !== selCat) {
+          return false;
+        }
+        if (search) {
+          const acc = (item['Account'] || '').toLowerCase();
+          const agr = (item['Agreement Number'] || '').toLowerCase();
+          const cmt = (item['Comments'] || '').toLowerCase();
+          const rsn = (item['Agreement Task Reason'] || '').toLowerCase();
+          if (!acc.includes(search) && !agr.includes(search) && !cmt.includes(search) && !rsn.includes(search)) {
+            return false;
+          }
+        }
+        return true;
+      };
+
+      const filteredOpen = openTasksData.filter(filterFn);
+      const filteredClosed = closedTasksData.filter(filterFn);
+
+      // Render KPIs
+      renderKPIs(filteredOpen, filteredClosed);
+
+      // Render Charts
+      renderCharts(filteredOpen);
+
+      // Render Summary Tables
+      // Pass full openTasksData for the manager breakdown so it is always
+      // independent of category filters / search applied to the Actionable Items Summary.
+      renderSummaryTables(filteredOpen, openTasksData);
+
+      // Render Open Tasks Table
+      renderOpenTable(filteredOpen);
+
+      // Render Closed Tasks Table
+      renderClosedTable(filteredClosed);
+
+      // Render Top 10 Tables — always use unfiltered source data so category
+      // filters on the Actionable Items Summary do not affect these sections.
+      renderTop10Tables(openTasksData, closedTasksData);
+
+      // Update badge counts
+      document.getElementById('badge-open-count').textContent = filteredOpen.length;
+      document.getElementById('badge-closed-count').textContent = filteredClosed.length;
+      document.getElementById('open-table-count').textContent = filteredOpen.length;
+      document.getElementById('closed-table-count').textContent = filteredClosed.length;
+    }
+
+    // KPI Metrics calculation
+    function renderKPIs(openTasks, closedTasks) {
+      let openTCV = 0;
+      let pastDueTCV = 0, pastDueCount = 0;
+      let pendingTCV = 0, pendingCount = 0;
+      let closedTCV = 0;
+
+      openTasks.forEach(t => {
+        const tcv = parseFloat(t['TCV at Risk']) || 0;
+        openTCV += tcv;
+        const cat = (t['Status / Category'] || '').toLowerCase();
+        if (cat.includes('past due')) {
+          pastDueTCV += tcv;
+          pastDueCount++;
+        }
+        if (cat.includes('pending signings') || cat.includes('signing')) {
+          pendingTCV += tcv;
+          pendingCount++;
+        }
+      });
+
+      closedTasks.forEach(t => {
+        closedTCV += (parseFloat(t['TCV at Risk']) || 0);
+      });
+
+      document.getElementById('kpi-open-tcv').textContent = fmtCurrency(openTCV);
+      document.getElementById('kpi-open-count').textContent = openTasks.length;
+
+      document.getElementById('kpi-pastdue-tcv').textContent = fmtCurrency(pastDueTCV);
+      document.getElementById('kpi-pastdue-count').textContent = pastDueCount;
+
+      document.getElementById('kpi-pending-tcv').textContent = fmtCurrency(pendingTCV);
+      document.getElementById('kpi-pending-count').textContent = pendingCount;
+
+      document.getElementById('kpi-closed-tcv').textContent = fmtCurrency(closedTCV);
+      document.getElementById('kpi-closed-count').textContent = closedTasks.length;
+    }
+
+    // Render Charts using Chart.js
+    function renderCharts(openTasks) {
+      // 0. HS vs SS distribution (Count & Percentage)
+      let hsCount = 0;
+      let ssCount = 0;
+      let otherCount = 0;
+
+      // 1. Status / Category distribution
+      const catMap = {};
+      const mgrMap = {};
+      const mktMap = {};
+
+      openTasks.forEach(t => {
+        const reason = (t['Agreement Task Reason'] || '').trim();
+        const upperReason = reason.toUpperCase();
+        if (upperReason.startsWith('HS') || upperReason.includes('HS -') || upperReason.includes('HS –')) {
+          hsCount++;
+        } else if (upperReason.startsWith('SS') || upperReason.includes('SS -') || upperReason.includes('SS –')) {
+          ssCount++;
+        } else {
+          otherCount++;
+        }
+
+        const cat = t['Status / Category'] || 'Other';
+        const mgr = t['Sales Manager Assigned'] || 'Unassigned';
+        const mkt = t['Market'] || 'Other';
+        const tcv = parseFloat(t['TCV at Risk']) || 0;
+
+        catMap[cat] = (catMap[cat] || 0) + tcv;
+        mgrMap[mgr] = (mgrMap[mgr] || 0) + tcv;
+        mktMap[mkt] = (mktMap[mkt] || 0) + tcv;
+      });
+
+      // Pastel palette (6 colours, cycling where needed)
+      const PASTEL = {
+        blue:     '#A7C7E7',
+        green:    '#B7E4C7',
+        lavender: '#CDB4DB',
+        peach:    '#FFD6A5',
+        pink:     '#FFCAD4',
+        yellow:   '#FFF3B0'
+      };
+      const PASTEL_CYCLE = [PASTEL.blue, PASTEL.peach, PASTEL.lavender, PASTEL.green, PASTEL.pink, PASTEL.yellow];
+      const PASTEL_BORDER = PASTEL_CYCLE.map(c => c); // same tint – border provided by card bg
+      const TICK_COLOR = '#2D3748';
+
+      const totalHsSs = hsCount + ssCount + otherCount;
+      const hsSsLabels = ['HS (Hard Stops)', 'SS (Soft Stops)'];
+      const hsSsData = [hsCount, ssCount];
+      const hsSsColors = [PASTEL.pink, PASTEL.blue];
+
+      if (otherCount > 0) {
+        hsSsLabels.push('Other / Uncategorized');
+        hsSsData.push(otherCount);
+        hsSsColors.push(PASTEL.lavender);
+      }
+
+      // Render Chart 0: HS vs SS Donut Chart
+      if (chartHsSs) chartHsSs.destroy();
+      const ctxHsSs = document.getElementById('chart-hs-ss').getContext('2d');
+      chartHsSs = new Chart(ctxHsSs, {
+        type: 'doughnut',
+        data: {
+          labels: hsSsLabels,
+          datasets: [{
+            data: hsSsData,
+            backgroundColor: hsSsColors,
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                boxWidth: 12,
+                font: { size: 12 },
+                color: TICK_COLOR,
+                generateLabels: (chart) => {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    return data.labels.map((label, i) => {
+                      const count = data.datasets[0].data[i] || 0;
+                      const fill = data.datasets[0].backgroundColor[i];
+                      return {
+                        text: `${label} (${count})`,
+                        fillStyle: fill,
+                        strokeStyle: '#ffffff',
+                        lineWidth: 1,
+                        hidden: isNaN(data.datasets[0].data[i]) || chart.getDatasetMeta(0).data[i].hidden,
+                        index: i
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const val = ctx.raw || 0;
+                  const pct = totalHsSs > 0 ? ((val / totalHsSs) * 100).toFixed(1) : '0.0';
+                  return ` ${ctx.label}: ${val} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Render Chart 1: Category (donut – full pastel cycle)
+      const catKeys = Object.keys(catMap);
+      const catColors = catKeys.map((_, i) => PASTEL_CYCLE[i % PASTEL_CYCLE.length]);
+      if (chartCat) chartCat.destroy();
+      const ctxCat = document.getElementById('chart-category').getContext('2d');
+      chartCat = new Chart(ctxCat, {
+        type: 'doughnut',
+        data: {
+          labels: catKeys,
+          datasets: [{
+            data: Object.values(catMap),
+            backgroundColor: catColors,
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { boxWidth: 12, font: { size: 11 }, color: TICK_COLOR }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` ${ctx.label}: ${fmtCurrency(ctx.raw)}`
+              }
+            }
+          }
+        }
+      });
+
+      // Render Chart 2: Sales Manager – each bar cycles through pastels
+      const sortedMgrs = Object.entries(mgrMap).sort((a,b) => b[1] - a[1]);
+      const mgrColors = sortedMgrs.map((_, i) => PASTEL_CYCLE[i % PASTEL_CYCLE.length]);
+      if (chartMgr) chartMgr.destroy();
+      const ctxMgr = document.getElementById('chart-manager').getContext('2d');
+      chartMgr = new Chart(ctxMgr, {
+        type: 'bar',
+        data: {
+          labels: sortedMgrs.map(m => m[0]),
+          datasets: [{
+            label: 'TCV at Risk ($)',
+            data: sortedMgrs.map(m => m[1]),
+            backgroundColor: mgrColors,
+            borderColor: mgrColors.map(c => c),
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => ` ${fmtCurrency(ctx.raw)}` } }
+          },
+          scales: {
+            x: { ticks: { color: TICK_COLOR } },
+            y: { ticks: { color: TICK_COLOR, callback: (v) => '$' + (v/1000).toLocaleString() + 'k' } }
+          }
+        }
+      });
+
+      // Render Chart 3: Market – each bar cycles through pastels
+      const sortedMkts = Object.entries(mktMap).sort((a,b) => b[1] - a[1]);
+      const mktColors = sortedMkts.map((_, i) => PASTEL_CYCLE[i % PASTEL_CYCLE.length]);
+      if (chartMkt) chartMkt.destroy();
+      const ctxMkt = document.getElementById('chart-market').getContext('2d');
+      chartMkt = new Chart(ctxMkt, {
+        type: 'bar',
+        data: {
+          labels: sortedMkts.map(m => m[0]),
+          datasets: [{
+            label: 'TCV at Risk ($)',
+            data: sortedMkts.map(m => m[1]),
+            backgroundColor: mktColors,
+            borderColor: mktColors.map(c => c),
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => ` ${fmtCurrency(ctx.raw)}` } }
+          },
+          scales: {
+            x: { ticks: { color: TICK_COLOR, callback: (v) => '$' + (v/1000).toLocaleString() + 'k' } },
+            y: { ticks: { color: TICK_COLOR } }
+          }
+        }
+      });
+
+      // Render Chart 5: Top 10 Agreement Task Reasons – each bar cycles through pastels
+      const reasonCountMap = {};
+      openTasks.forEach(t => {
+        const reason = (t['Agreement Task Reason'] || '').trim();
+        if (reason) {
+          reasonCountMap[reason] = (reasonCountMap[reason] || 0) + 1;
+        }
+      });
+      const top10Reasons = Object.entries(reasonCountMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      const reasonLabels = top10Reasons.map(([label]) => label);
+      const reasonCounts = top10Reasons.map(([, count]) => count);
+      const reasonColors = reasonLabels.map((_, i) => PASTEL_CYCLE[i % PASTEL_CYCLE.length]);
+
+      if (chartTaskReason) chartTaskReason.destroy();
+      const ctxReason = document.getElementById('chart-task-reason').getContext('2d');
+      chartTaskReason = new Chart(ctxReason, {
+        type: 'bar',
+        data: {
+          labels: reasonLabels,
+          datasets: [{
+            label: 'Count',
+            data: reasonCounts,
+            backgroundColor: reasonColors,
+            borderColor: reasonColors.map(c => c),
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` ${ctx.raw} task${ctx.raw !== 1 ? 's' : ''}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { stepSize: 10, precision: 0, color: TICK_COLOR },
+              grid: { color: 'rgba(0,0,0,0.06)' }
+            },
+            y: {
+              ticks: {
+                font: { size: 11 },
+                color: TICK_COLOR,
+                callback: function(value, index) {
+                  const lbl = reasonLabels[index] || '';
+                  return lbl.length > 45 ? lbl.substring(0, 42) + '…' : lbl;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Render Summary Tables (Americas Summary tab matching excel)
+    function renderSummaryTables(openTasks, allOpenTasks) {
+      // allOpenTasks: unfiltered source data used for the manager breakdown so that
+      // the "Pending Signings by Sales Manager" table is always independent of any
+      // category filters or search terms applied to the Actionable Items Summary.
+      if (!allOpenTasks) allOpenTasks = openTasks;
+
+      // 1. Category table
+      const catSummary = {};
+      let totalCatCount = 0;
+      let totalCatTCV = 0;
+
+      openTasks.forEach(t => {
+        const cat = t['Status / Category'] || 'Other';
+        const tcv = parseFloat(t['TCV at Risk']) || 0;
+        if (!catSummary[cat]) catSummary[cat] = { count: 0, tcv: 0 };
+        catSummary[cat].count++;
+        catSummary[cat].tcv += tcv;
+        totalCatCount++;
+        totalCatTCV += tcv;
+      });
+
+      const catTbody = document.querySelector('#table-category-summary tbody');
+      catTbody.innerHTML = Object.keys(catSummary).sort().map(k => `
+        <tr>
+          <td>${getStatusBadge(k)}</td>
+          <td style="text-align:right;">${catSummary[k].count}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(catSummary[k].tcv)}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('cat-total-count').textContent = totalCatCount;
+      document.getElementById('cat-total-tcv').textContent = fmtCurrency(totalCatTCV);
+
+      // 2. Manager breakdown for Pending Signings — always uses the full unfiltered
+      //    open-tasks dataset so it is independent of the Actionable Items Summary filter.
+      const pendingMgrSummary = {};
+      let totalMgrCount = 0;
+      let totalMgrTCV = 0;
+
+      allOpenTasks.forEach(t => {
+        const cat = (t['Status / Category'] || '').toLowerCase();
+        if (cat.includes('pending signings') || cat.includes('signing')) {
+          const mgr = t['Sales Manager Assigned'] || 'Unassigned';
+          const tcv = parseFloat(t['TCV at Risk']) || 0;
+          if (!pendingMgrSummary[mgr]) pendingMgrSummary[mgr] = { count: 0, tcv: 0 };
+          pendingMgrSummary[mgr].count++;
+          pendingMgrSummary[mgr].tcv += tcv;
+          totalMgrCount++;
+          totalMgrTCV += tcv;
+        }
+      });
+
+      const mgrTbody = document.querySelector('#table-manager-summary tbody');
+      mgrTbody.innerHTML = Object.keys(pendingMgrSummary).sort().map(mgr => `
+        <tr>
+          <td><strong>${mgr}</strong></td>
+          <td style="text-align:right;">${pendingMgrSummary[mgr].count}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(pendingMgrSummary[mgr].tcv)}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('mgr-total-count').textContent = totalMgrCount;
+      document.getElementById('mgr-total-tcv').textContent = fmtCurrency(totalMgrTCV);
+    }
+
+    // Render Open Detailed Table
+    function renderOpenTable(tasks) {
+      const sorted = [...tasks].sort((a,b) => {
+        let valA = a[sortState.open.key];
+        let valB = b[sortState.open.key];
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return sortState.open.asc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        return sortState.open.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+
+      const tbody = document.getElementById('tbody-open-tasks');
+      tbody.innerHTML = sorted.map((t, idx) => `
+        <tr>
+          <td><strong>${t['Agreement Number'] || '-'}</strong></td>
+          <td>${t['Market'] || '-'}</td>
+          <td>${t['Account'] || '-'}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(t['TCV at Risk'])}</td>
+          <td>${t['Assigned'] || '-'}</td>
+          <td>${t['Sales Manager Assigned'] || '-'}</td>
+          <td style="text-align:right;">${t['Age (days)'] !== undefined ? t['Age (days)'] : '-'}</td>
+          <td>${getStatusBadge(t['Status / Category'])}</td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${t['Agreement Task Reason'] || ''}">${t['Agreement Task Reason'] || '-'}</td>
+          <td>
+            <div class="comment-cell" onclick="openCommentModal('${escapeHtml(t['Account'] || '')}', '${escapeHtml(t['Agreement Number'] || '')}', '${escapeHtml(t['Comments'] || '')}')">
+              <i class="fa-regular fa-comment-dots"></i> ${escapeHtml(t['Comments'] || 'View Details')}
+            </div>
+          </td>
+          <td>${t['Task Number'] || '-'}</td>
+          <td>${t['Created By'] || '-'}</td>
+        </tr>
+      `).join('');
+
+      // Update Open Tasks Table Footer Totals
+      let totalOpenTCV = 0;
+      let totalOpenAge = 0;
+      tasks.forEach(t => {
+        totalOpenTCV += (parseFloat(t['TCV at Risk']) || 0);
+        totalOpenAge += (parseInt(t['Age (days)']) || 0);
+      });
+      const avgOpenAge = tasks.length > 0 ? Math.round(totalOpenAge / tasks.length) + ' d (avg)' : '-';
+      document.getElementById('open-tfoot-count').textContent = tasks.length;
+      document.getElementById('open-tfoot-tcv').textContent = fmtCurrency(totalOpenTCV);
+      document.getElementById('open-tfoot-age').textContent = avgOpenAge;
+    }
+
+    // Render Closed Detailed Table
+    function renderClosedTable(tasks) {
+      const sorted = [...tasks].sort((a,b) => {
+        let valA = a[sortState.closed.key];
+        let valB = b[sortState.closed.key];
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return sortState.closed.asc ? valA - valB : valB - valA;
+        }
+        valA = (valA || '').toString().toLowerCase();
+        valB = (valB || '').toString().toLowerCase();
+        return sortState.closed.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+
+      const tbody = document.getElementById('tbody-closed-tasks');
+      tbody.innerHTML = sorted.map((t, idx) => `
+        <tr>
+          <td><strong>${t['Agreement Number'] || '-'}</strong></td>
+          <td>${t['Market'] || '-'}</td>
+          <td>${t['Account'] || '-'}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(t['TCV at Risk'])}</td>
+          <td>${t['Assigned'] || '-'}</td>
+          <td>${t['Sales Manager Assigned'] || '-'}</td>
+          <td style="text-align:right;">${t['Age (days)'] !== undefined ? t['Age (days)'] : '-'}</td>
+          <td><span class="badge badge-completed">${t['Status'] || 'Completed'}</span></td>
+          <td>${getStatusBadge(t['Status / Category'])}</td>
+          <td>
+            <div class="comment-cell" onclick="openCommentModal('${escapeHtml(t['Account'] || '')}', '${escapeHtml(t['Agreement Number'] || '')}', '${escapeHtml(t['Comments'] || '')}')">
+              <i class="fa-regular fa-comment-dots"></i> ${escapeHtml(t['Comments'] || 'View Details')}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      // Update Closed Tasks Table Footer Totals
+      let totalClosedTCV = 0;
+      let totalClosedAge = 0;
+      tasks.forEach(t => {
+        totalClosedTCV += (parseFloat(t['TCV at Risk']) || 0);
+        totalClosedAge += (parseInt(t['Age (days)']) || 0);
+      });
+      const avgClosedAge = tasks.length > 0 ? Math.round(totalClosedAge / tasks.length) + ' d (avg)' : '-';
+      document.getElementById('closed-tfoot-count').textContent = tasks.length;
+      document.getElementById('closed-tfoot-tcv').textContent = fmtCurrency(totalClosedTCV);
+      document.getElementById('closed-tfoot-age').textContent = avgClosedAge;
+    }
+
+    // Render Top 10 Tables
+    function renderTop10Tables(openTasks, closedTasks) {
+      // 1. Pending Signings (Excludes Comments, includes Grand Total)
+      const pending = openTasks
+        .filter(t => (t['Status / Category'] || '').toLowerCase().includes('pending signings') || (t['Status / Category'] || '').toLowerCase().includes('signing'))
+        .sort((a,b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10);
+
+      let totalPendingTCV = 0;
+      pending.forEach(t => { totalPendingTCV += (parseFloat(t['TCV at Risk']) || 0); });
+
+      document.querySelector('#table-top10-signings tbody').innerHTML = pending.map(t => `
+        <tr>
+          <td><strong>${t['Agreement Number'] || '-'}</strong></td>
+          <td>${t['Market'] || '-'}</td>
+          <td>${t['Account'] || '-'}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(t['TCV at Risk'])}</td>
+          <td>${t['Assigned'] || '-'}</td>
+          <td>${t['Sales Manager Assigned'] || '-'}</td>
+        </tr>
+      `).join('');
+      document.getElementById('top10-signings-total-tcv').textContent = fmtCurrency(totalPendingTCV);
+
+      // 2. Past Due Missing PO (Excludes Comments, includes Grand Total)
+      const pastDue = openTasks
+        .filter(t => (t['Status / Category'] || '').toLowerCase().includes('past due'))
+        .sort((a,b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10);
+
+      let totalPastDueTCV = 0;
+      pastDue.forEach(t => { totalPastDueTCV += (parseFloat(t['TCV at Risk']) || 0); });
+
+      document.querySelector('#table-top10-pastdue tbody').innerHTML = pastDue.map(t => `
+        <tr>
+          <td><strong>${t['Agreement Number'] || '-'}</strong></td>
+          <td>${t['Market'] || '-'}</td>
+          <td>${t['Account'] || '-'}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(t['TCV at Risk'])}</td>
+          <td>${t['Assigned'] || '-'}</td>
+          <td>${t['Sales Manager Assigned'] || '-'}</td>
+        </tr>
+      `).join('');
+      document.getElementById('top10-pastdue-total-tcv').textContent = fmtCurrency(totalPastDueTCV);
+
+      // 3. Closed (Excludes raw Total/Grand Total summary row, excludes Comments, includes Grand Total)
+      const validClosed = closedTasks.filter(t => {
+        const agNum = (t['Agreement Number'] || '').toString().trim().toLowerCase();
+        const account = (t['Account'] || '').toString().trim().toLowerCase();
+        const market = (t['Market'] || '').toString().trim().toLowerCase();
+        // Exclude raw file Total summary rows
+        if (agNum === 'total' || agNum === 'grand total' || agNum.startsWith('total') || agNum.startsWith('grand total')) return false;
+        if (account === 'total' || account === 'grand total' || market === 'total' || market === 'grand total') return false;
+        return true;
+      });
+
+      const closed = validClosed
+        .sort((a,b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10);
+
+      let totalClosedTCV = 0;
+      closed.forEach(t => { totalClosedTCV += (parseFloat(t['TCV at Risk']) || 0); });
+
+      document.querySelector('#table-top10-closed tbody').innerHTML = closed.map(t => `
+        <tr>
+          <td><strong>${t['Agreement Number'] || '-'}</strong></td>
+          <td>${t['Market'] || '-'}</td>
+          <td>${t['Account'] || '-'}</td>
+          <td style="text-align:right; font-weight:600;">${fmtCurrency(t['TCV at Risk'])}</td>
+          <td>${t['Assigned'] || '-'}</td>
+          <td>${t['Sales Manager Assigned'] || '-'}</td>
+        </tr>
+      `).join('');
+      document.getElementById('top10-closed-total-tcv').textContent = fmtCurrency(totalClosedTCV);
+    }
+
+    // Sort column handler
+    function sortTable(tableType, columnKey) {
+      if (sortState[tableType].key === columnKey) {
+        sortState[tableType].asc = !sortState[tableType].asc;
+      } else {
+        sortState[tableType].key = columnKey;
+        sortState[tableType].asc = true;
+      }
+      applyFiltersAndRender();
+    }
+
+    // Modal popup helper
+    function openCommentModal(account, agreement, comments) {
+      document.getElementById('modal-title').textContent = `${account} (${agreement})`;
+      document.getElementById('modal-content').textContent = comments || 'No additional comments provided for this task.';
+      document.getElementById('comment-modal').classList.add('open');
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // ─── Export Report ────────────────────────────────────────────────────────
+    // Single 3-tab Excel workbook:
+    //   Tab 1 – Executive Summary  : 5 summary tables stacked, always full dataset
+    //   Tab 2 – Open Tasks         : complete open-tasks detail rows
+    //   Tab 3 – Closed Tasks       : complete closed-tasks detail rows
+    // Each table is built from its own independent data pass so filters applied
+    // to one never affect another.
+    // exportReport — single 3-tab Excel workbook.
+    // Every table on every sheet is a proper Excel ListObject (Insert → Table)
+    // with autofilter, banded rows, and a named table style so each can be
+    // filtered and sorted independently.
+    //
+    //   Tab 1 "Executive Summary"  – 5 named tables stacked vertically
+    //   Tab 2 "Open Tasks"         – full open-tasks detail as a table
+    //   Tab 3 "Closed Tasks"       – full closed-tasks detail as a table
+    function exportReport() {
+      if (!openTasksData.length && !closedTasksData.length) {
+        alert('No data loaded. Please upload files before exporting.');
+        return;
+      }
+
+      // ── Shared number format ──────────────────────────────────────────────
+      const FMT_CURRENCY = '[$$-409]#,##0.00';
+
+      // ── Shared helper: auto column widths ─────────────────────────────────
+      function autoWidths(headers, rows) {
+        return headers.map((h, i) => {
+          let max = String(h).length;
+          rows.forEach(r => { const v = r[i] !== undefined ? String(r[i]) : ''; if (v.length > max) max = v.length; });
+          return Math.min(max + 2, 60);
+        });
+      }
+
+      // ── ExcelJS workbook ──────────────────────────────────────────────────
+      const ejsWb = new ExcelJS.Workbook();
+
+      // ════════════════════════════════════════════════════════════════════════
+      // TAB 1 – Executive Summary
+      // Five tables stacked vertically, each separated by a blank row.
+      // Table style: TableStyleMedium2 (blue header + banded rows, matches the
+      // reference file's colour palette).
+      // ════════════════════════════════════════════════════════════════════════
+      const sumWs = ejsWb.addWorksheet('Executive Summary');
+
+      // Column widths (chars): A, B, C  — D is a visual gap, E–J for Top-10
+      sumWs.columns = [
+        { width: 36 }, // A
+        { width: 28 }, // B
+        { width: 18 }, // C
+        { width: 4  }, // D  gap
+        { width: 22 }, // E
+        { width: 34 }, // F
+        { width: 48 }, // G
+        { width: 18 }, // H
+        { width: 26 }, // I
+        { width: 24 }, // J
+      ];
+
+      // ── Helper: write a bold section-title cell ───────────────────────────
+      function writeTitle(ws, rowNum, colNum, text) {
+        const cell = ws.getCell(rowNum, colNum);
+        cell.value = text;
+        cell.font  = { bold: true, size: 13, name: 'Calibri' };
+        ws.getRow(rowNum).height = 20;
+      }
+
+      // ── Helper: add an ExcelJS Table (ListObject) ─────────────────────────
+      // startRow  – 1-based row of the header
+      // startCol  – 1-based column letter index of the first column
+      // name      – unique table name (no spaces)
+      // colDefs   – array of { header, numFmt? } objects
+      // rows      – array of value arrays (one per data row; no total row)
+      // totals    – optional array of { label?, value? } for each column
+      //             (column gets a totals row showing label or value)
+      function addTable(ws, startRow, startCol, name, colDefs, rows, totals) {
+        const colLetter = String.fromCharCode(64 + startCol);
+        const endColLetter = String.fromCharCode(64 + startCol + colDefs.length - 1);
+
+        // ExcelJS table definition
+        const tableDef = {
+          name,
+          ref: `${colLetter}${startRow}`,
+          headerRow: true,
+          totalsRow: !!totals,
+          style: {
+            theme: 'TableStyleMedium2',
+            showRowStripes: true,
+          },
+          columns: colDefs.map((c, i) => {
+            const def = { name: c.header, filterButton: true };
+            if (totals) {
+              const tot = totals[i];
+              if (tot && tot.label)  def.totalsRowLabel    = tot.label;
+              if (tot && tot.value !== undefined) def.totalsRowFunction = 'sum';
+            }
+            return def;
+          }),
+          rows: rows,
+        };
+
+        ws.addTable(tableDef);
+
+        // Apply number formats to the inserted cells (ExcelJS table rows are
+        // added starting at startRow+1; totals row is at startRow+rows.length+1)
+        const dataStartRow = startRow + 1;
+        const dataEndRow   = dataStartRow + rows.length - 1;
+        colDefs.forEach((c, ci) => {
+          if (!c.numFmt) return;
+          for (let r = dataStartRow; r <= dataEndRow; r++) {
+            ws.getCell(r, startCol + ci).numFmt = c.numFmt;
+          }
+          // totals row
+          if (totals && totals[ci] && totals[ci].value !== undefined) {
+            ws.getCell(dataEndRow + 1, startCol + ci).numFmt = c.numFmt;
+          }
+        });
+
+        // Return the row number just below the last row of this table
+        return startRow + rows.length + (totals ? 1 : 0) + 1; // +1 for blank gap
+      }
+
+      // ── Compute datasets (each independent, always full raw data) ─────────
+
+      // 1. Actionable Items Summary
+      const catMap = {};
+      let catTotal = 0, catTCV = 0;
+      openTasksData.forEach(t => {
+        const cat = t['Status / Category'] || 'Other';
+        const tcv = parseFloat(t['TCV at Risk']) || 0;
+        if (!catMap[cat]) catMap[cat] = { count: 0, tcv: 0 };
+        catMap[cat].count++; catMap[cat].tcv += tcv;
+        catTotal++; catTCV += tcv;
+      });
+      const catRows = Object.keys(catMap).sort().map(k => [k, catMap[k].count, catMap[k].tcv]);
+
+      // 2. Pending Signings by Sales Manager
+      const mgrMap = {};
+      let mgrTotal = 0, mgrTCV = 0;
+      openTasksData.forEach(t => {
+        const cat = (t['Status / Category'] || '').toLowerCase();
+        if (cat.includes('pending signings') || cat.includes('signing')) {
+          const mgr = t['Sales Manager Assigned'] || 'Unassigned';
+          const tcv = parseFloat(t['TCV at Risk']) || 0;
+          if (!mgrMap[mgr]) mgrMap[mgr] = { count: 0, tcv: 0 };
+          mgrMap[mgr].count++; mgrMap[mgr].tcv += tcv;
+          mgrTotal++; mgrTCV += tcv;
+        }
+      });
+      const mgrRows = Object.keys(mgrMap).sort().map(m => [m, mgrMap[m].count, mgrMap[m].tcv]);
+
+      // 3–5. Top-10 datasets
+      const top10Signings = openTasksData
+        .filter(t => { const c = (t['Status / Category'] || '').toLowerCase(); return c.includes('pending signings') || c.includes('signing'); })
+        .sort((a, b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10)
+        .map(t => [String(t['Agreement Number'] || ''), String(t['Market'] || ''), String(t['Account'] || ''), parseFloat(t['TCV at Risk']) || 0, String(t['Assigned'] || ''), String(t['Sales Manager Assigned'] || '')]);
+
+      const top10PastDue = openTasksData
+        .filter(t => (t['Status / Category'] || '').toLowerCase().includes('past due'))
+        .sort((a, b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10)
+        .map(t => [String(t['Agreement Number'] || ''), String(t['Market'] || ''), String(t['Account'] || ''), parseFloat(t['TCV at Risk']) || 0, String(t['Assigned'] || ''), String(t['Sales Manager Assigned'] || '')]);
+
+      const validClosed = closedTasksData.filter(t => {
+        const ag = (t['Agreement Number'] || '').toString().trim().toLowerCase();
+        const ac = (t['Account'] || '').toString().trim().toLowerCase();
+        const mk = (t['Market'] || '').toString().trim().toLowerCase();
+        if (ag === 'total' || ag === 'grand total' || ag.startsWith('total') || ag.startsWith('grand total')) return false;
+        if (ac === 'total' || ac === 'grand total' || mk === 'total' || mk === 'grand total') return false;
+        return true;
+      });
+      const top10Closed = validClosed
+        .sort((a, b) => (parseFloat(b['TCV at Risk']) || 0) - (parseFloat(a['TCV at Risk']) || 0))
+        .slice(0, 10)
+        .map(t => [String(t['Agreement Number'] || ''), String(t['Market'] || ''), String(t['Account'] || ''), parseFloat(t['TCV at Risk']) || 0, String(t['Assigned'] || ''), String(t['Sales Manager Assigned'] || '')]);
+
+      const TOP10_COLS = [
+        { header: 'Agreement Number' },
+        { header: 'Market' },
+        { header: 'Account' },
+        { header: 'TCV at Risk', numFmt: FMT_CURRENCY },
+        { header: 'Assigned' },
+        { header: 'Sales Manager Assigned' },
+      ];
+
+      // ── Write tables stacked vertically, left-side cols A–C ───────────────
+      // Table 1: Actionable Items Summary
+      let nextRow = 1;
+      writeTitle(sumWs, nextRow, 1, 'Actionable Items Summary');
+      nextRow++;
+      nextRow = addTable(sumWs, nextRow, 1, 'tblActionableItems',
+        [
+          { header: 'Status / Category' },
+          { header: 'Count of Status / Category' },
+          { header: 'Sum of TCV at Risk', numFmt: FMT_CURRENCY },
+        ],
+        catRows,
+        [{ label: 'Grand Total' }, { value: catTotal }, { value: catTCV }]
+      );
+
+      // Table 2: Pending Signings by Sales Manager
+      writeTitle(sumWs, nextRow, 1, 'Pending Signings by Sales Manager');
+      nextRow++;
+      nextRow = addTable(sumWs, nextRow, 1, 'tblPendingSigningsMgr',
+        [
+          { header: 'Sales Manager Assigned' },
+          { header: 'Count of Sales Manager Assigned' },
+          { header: 'Sum of TCV at Risk', numFmt: FMT_CURRENCY },
+        ],
+        mgrRows,
+        [{ label: 'Grand Total' }, { value: mgrTotal }, { value: mgrTCV }]
+      );
+
+      // Table 3: Americas Top 10 – Pending Signings
+      writeTitle(sumWs, nextRow, 1, 'Americas Top 10 Cases – Pending Signings');
+      nextRow++;
+      nextRow = addTable(sumWs, nextRow, 1, 'tblTop10Signings', TOP10_COLS, top10Signings,
+        [{ label: 'Sub-Total' }, {}, {}, { value: top10Signings.reduce((s, r) => s + r[3], 0) }, {}, {}]
+      );
+
+      // Table 4: Americas Top 10 – Missing PO Past Due
+      writeTitle(sumWs, nextRow, 1, 'Americas Top 10 Cases – Pending Missing PO Past Due');
+      nextRow++;
+      nextRow = addTable(sumWs, nextRow, 1, 'tblTop10PastDue', TOP10_COLS, top10PastDue,
+        [{ label: 'Sub-Total' }, {}, {}, { value: top10PastDue.reduce((s, r) => s + r[3], 0) }, {}, {}]
+      );
+
+      // Table 5: Americas Top 10 – Closed
+      writeTitle(sumWs, nextRow, 1, 'Americas Top 10 Cases – Closed');
+      nextRow++;
+      addTable(sumWs, nextRow, 1, 'tblTop10Closed', TOP10_COLS, top10Closed,
+        [{ label: 'Sub-Total' }, {}, {}, { value: top10Closed.reduce((s, r) => s + r[3], 0) }, {}, {}]
+      );
+
+      // ════════════════════════════════════════════════════════════════════════
+      // TAB 2 – Open Tasks   (full detail as an Excel Table)
+      // ════════════════════════════════════════════════════════════════════════
+      if (openTasksData.length) {
+        const openWs = ejsWb.addWorksheet('Open Tasks');
+        const openHdrs = Object.keys(openTasksData[0]);
+        const openRows = openTasksData.map(r => openHdrs.map(h => r[h] !== undefined ? r[h] : ''));
+        const widths   = autoWidths(openHdrs, openRows);
+        openWs.columns = openHdrs.map((h, i) => ({ header: h, width: widths[i] }));
+        openWs.addTable({
+          name: 'tblOpenTasks',
+          ref: 'A1',
+          headerRow: true,
+          totalsRow: false,
+          style: { theme: 'TableStyleMedium2', showRowStripes: true },
+          columns: openHdrs.map(h => ({ name: h, filterButton: true })),
+          rows: openRows,
+        });
+        // Apply currency format to TCV column
+        const tcvColIdx = openHdrs.indexOf('TCV at Risk');
+        if (tcvColIdx >= 0) {
+          for (let r = 2; r <= openRows.length + 1; r++) {
+            openWs.getCell(r, tcvColIdx + 1).numFmt = FMT_CURRENCY;
+          }
+        }
+      } else {
+        ejsWb.addWorksheet('Open Tasks').addRow(['No open task data loaded.']);
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // TAB 3 – Closed Tasks   (full detail as an Excel Table)
+      // ════════════════════════════════════════════════════════════════════════
+      if (closedTasksData.length) {
+        const closedWs = ejsWb.addWorksheet('Closed Tasks');
+        const closedHdrs = Object.keys(closedTasksData[0]);
+        const closedRows = closedTasksData.map(r => closedHdrs.map(h => r[h] !== undefined ? r[h] : ''));
+        const widths     = autoWidths(closedHdrs, closedRows);
+        closedWs.columns = closedHdrs.map((h, i) => ({ header: h, width: widths[i] }));
+        closedWs.addTable({
+          name: 'tblClosedTasks',
+          ref: 'A1',
+          headerRow: true,
+          totalsRow: false,
+          style: { theme: 'TableStyleMedium2', showRowStripes: true },
+          columns: closedHdrs.map(h => ({ name: h, filterButton: true })),
+          rows: closedRows,
+        });
+        const tcvColIdx = closedHdrs.indexOf('TCV at Risk');
+        if (tcvColIdx >= 0) {
+          for (let r = 2; r <= closedRows.length + 1; r++) {
+            closedWs.getCell(r, tcvColIdx + 1).numFmt = FMT_CURRENCY;
+          }
+        }
+      } else {
+        ejsWb.addWorksheet('Closed Tasks').addRow(['No closed task data loaded.']);
+      }
+
+      // ── Write file ────────────────────────────────────────────────────────
+      const periodText = (document.getElementById('reporting-period-range').textContent || '').trim();
+      const safePeriod = periodText.replace(/[^a-zA-Z0-9\-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+      const filename = `TEL_Report${safePeriod ? '_' + safePeriod : ''}.xlsx`;
+
+      ejsWb.xlsx.writeBuffer().then(buffer => {
+        // Use a Blob download — ExcelJS produces a fully valid .xlsx natively,
+        // no need to round-trip through SheetJS for styled workbooks.
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }).catch(err => {
+        console.error('Export error:', err);
+        alert('Export failed: ' + err.message);
+      });
+    }
+
+    // Save a self-contained shareable HTML snapshot with the current dataset baked in
+    function saveShareableSnapshot() {
+      if (!openTasksData.length && !closedTasksData.length) {
+        alert('No data loaded. Please upload files or load data before saving a snapshot.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-save-snapshot');
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating…`;
+      btn.disabled = true;
+
+      // Use a small timeout so the spinner renders before the synchronous work begins
+      setTimeout(() => {
+        try {
+          // 1. Grab this page's full HTML source as a string
+          let html = document.documentElement.outerHTML;
+
+          // 2. Capture the reporting period text as displayed right now.
+          const periodText = (document.getElementById('reporting-period-range').textContent || '').trim();
+
+          // 3. Build snapshot metadata.
+          //    If this file is itself a snapshot, preserve the original creation timestamp
+          //    and reporting period so the historical context is never overwritten.
+          const meta = {
+            snapshotCreatedAt: (snapshotMeta && snapshotMeta.snapshotCreatedAt)
+              ? snapshotMeta.snapshotCreatedAt          // keep original timestamp
+              : new Date().toISOString(),               // first-time creation
+            reportingPeriodRange: (snapshotMeta && snapshotMeta.reportingPeriodRange)
+              ? snapshotMeta.reportingPeriodRange       // keep original period
+              : periodText,
+          };
+
+          // 4. Serialise dataset + metadata together.
+          const snapshotData = JSON.stringify({
+            openTasks:    openTasksData,
+            closedTasks:  closedTasksData,
+            snapshotMeta: meta,
+          });
+          const inlineScript = `<script>window.DEFAULT_DATA = ${snapshotData};<\/script>`;
+
+          // 5. Replace the external default_data.js <script> tag with the inlined data.
+          //    Also handle the case where the file was already a snapshot (no external script).
+          const externalScriptRe = /<script[^>]*src=["'][^"']*default_data\.js["'][^>]*><\/script>/i;
+          if (externalScriptRe.test(html)) {
+            html = html.replace(externalScriptRe, inlineScript);
+          } else {
+            // Already a snapshot – replace the existing inline DEFAULT_DATA block.
+            // Use a greedy‐safe pattern that won't break on nested content.
+            const inlineDataRe = /<script>window\.DEFAULT_DATA\s*=[\s\S]*?<\/script>/;
+            if (inlineDataRe.test(html)) {
+              html = html.replace(inlineDataRe, inlineScript);
+            } else {
+              // Fallback: inject just before </head>
+              html = html.replace('</head>', inlineScript + '</head>');
+            }
+          }
+
+          // 6. Build a filename stamped with the reporting period text
+          const safePeriod = periodText.replace(/[^a-zA-Z0-9\-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+          const filename = `TEL_Dashboard_Snapshot${safePeriod ? '_' + safePeriod : ''}.html`;
+
+          // 5. Trigger download
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          btn.innerHTML = `<i class="fa-solid fa-check"></i> Snapshot Saved!`;
+          btn.style.background = 'var(--success)';
+          btn.style.borderColor = 'var(--success)';
+          btn.style.color = '#fff';
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+            btn.disabled = false;
+          }, 2000);
+        } catch (err) {
+          console.error('Snapshot error:', err);
+          alert('Could not generate snapshot: ' + err.message);
+          btn.innerHTML = originalHTML;
+          btn.disabled = false;
+        }
+      }, 50);
+    }
+  </script>
+</body>
+</html>

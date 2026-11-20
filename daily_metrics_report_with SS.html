@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚡ Daily Metrics AI — Report Generator</title>
+  <script src="xlsx.full.min.js"></script>
+  <script src="exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── AI Theme colour tokens ── */
+    :root {
+      --bg:          #060d1a;
+      --surface:     #0d1b2e;
+      --surface-2:   #112240;
+      --border:      #1e3a5f;
+      --border-glow: #00c8ff44;
+      --text:        #ccd6f6;
+      --text-muted:  #5a7fa8;
+      --cyan:        #00c8ff;
+      --cyan-dim:    #00c8ff22;
+      --cyan-dark:   #0099cc;
+      --green:       #00e5b0;
+      --green-dim:   #00e5b015;
+      --amber:       #ffb347;
+      --amber-dim:   #ffb34715;
+      --red:         #ff4d6d;
+      --purple:      #a78bfa;
+      --purple-dim:  #a78bfa18;
+    }
+
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      /* subtle dot-grid circuit pattern */
+      background-image:
+        radial-gradient(circle at 25% 15%, #0a2a4a 0%, transparent 55%),
+        radial-gradient(circle at 80% 80%, #051428 0%, transparent 50%),
+        radial-gradient(#1e3a5f 1px, transparent 1px);
+      background-size: auto, auto, 28px 28px;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .layout {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 1800px;
+      flex-wrap: wrap;
+    }
+
+    /* Wraps the upload card + MTD card in a single left column */
+    .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 560px;
+      padding: 36px 40px 32px;
+      box-shadow: 0 2px 16px #0000001a;
+    }
+
+    /* ── Card interior: override dark-theme tokens with light equivalents ── */
+    .card h1                          { color: #1f2328; }
+    .card .subtitle                   { color: #57606a; }
+    .card .section-label              { color: #57606a; }
+    .card .section-divider            { border-top-color: #e5e7eb; }
+    .card .optional-badge             { background: #eff6ff; color: #3b82d4; border-color: #bfdbfe; }
+    .card .drop-zone                  { background: #f7f8fa; border-color: #d1d5db; }
+    .card .drop-zone.drag-over        { background: #eff6ff; border-color: #3b82d4; box-shadow: none; }
+    .card .drop-zone.nps              { border-color: #bbf7d0; }
+    .card .drop-zone.nps.drag-over    { background: #f0fdf4; border-color: #16a34a; }
+    .card .drop-zone.nps-lookup       { border-color: #fde68a; }
+    .card .drop-zone.nps-lookup.drag-over { background: #fffbeb; border-color: #d97706; }
+    .card .drop-zone.aging            { border-color: #fecaca; }
+    .card .drop-zone.aging.drag-over  { background: #fff1f2; border-color: #dc2626; }
+    .card .drop-zone.contracts        { border-color: #ddd6fe; }
+    .card .drop-zone.contracts.drag-over { background: #f5f3ff; border-color: #7c3aed; }
+    .card .drop-zone.screenshot       { background: #f7f8fa; border-color: #ddd6fe; }
+    .card .drop-zone.screenshot.drag-over,
+    .card .drop-zone.screenshot.has-image { background: #f5f3ff; border-color: #7c3aed; box-shadow: none; }
+    .card .drop-label                 { color: #1f2328; }
+    .card .drop-hint                  { color: #57606a; }
+    .card .drop-icon                  { color: #9ca3af; }
+    .card .drop-zone.nps .drop-icon   { color: #16a34a; }
+    .card .drop-zone.nps-lookup .drop-icon { color: #d97706; }
+    .card .drop-zone.aging .drop-icon { color: #dc2626; }
+    .card .drop-zone.contracts .drop-icon,
+    .card .drop-zone.screenshot .drop-icon { color: #7c3aed; }
+    .card .file-chosen                { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .card .nps-chosen                 { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .card .nps-lookup-chosen          { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .card .aging-chosen               { background: #fff1f2; border-color: #fecaca; color: #991b1b; }
+    .card .contracts-chosen           { background: #f5f3ff; border-color: #ddd6fe; color: #5b21b6; }
+    .card .clear-btn                  { color: #9ca3af; }
+    .card .sheet-picker label         { color: #57606a; }
+    .card .sheet-picker select        { background: #ffffff; border-color: #d1d5db; color: #1f2328; }
+    .card .sheet-picker select:focus  { outline-color: #3b82d4; }
+    .card .status                     { color: #57606a; }
+    .card .status.error               { color: #b91c1c; }
+    .card .status.success             { color: #166534; }
+    .card .progress-bar-wrap          { background: #f3f4f6; border-color: #e5e7eb; }
+    .card .btn-generate:disabled      { background: #e5e7eb; color: #9ca3af; }
+    .card .footer                     { color: #9ca3af; border-top-color: #e5e7eb; }
+    /* MTD card interior overrides */
+    .card .mtd-month-row label        { color: #57606a; }
+    .card .mtd-month-row input        { background: #ffffff; border-color: #d1d5db; color: #1f2328; }
+    .card .mtd-month-row input::placeholder { color: #9ca3af; }
+    .card #mtdParagraph               { background: #f7f8fa; border-color: #d1d5db; color: #1f2328; }
+    .card #mtdParagraph:focus         { background: #ffffff; }
+    .card .mtd-output-label           { color: #57606a; }
+    .card .mtd-status                 { color: #57606a; }
+    .card .mtd-status.error           { color: #b91c1c; }
+    .card .mtd-status.success         { color: #166534; }
+    .card .mtd-hint                   { color: #9ca3af; }
+    .card .btn-analyze:disabled       { background: #e5e7eb; color: #9ca3af; box-shadow: none; }
+    .card #ssPreviewImg               { background: #f7f8fa; border-color: #e5e7eb; }
+    .card .ss-clear-btn               { color: #57606a; border-color: #d1d5db; }
+    .card .ss-clear-btn:hover         { color: #b91c1c; border-color: #fecaca; }
+
+    .preview-card {
+      max-width: 1800px;
+      flex: 3 1 700px;
+      align-self: flex-start;
+      position: sticky;
+      top: 32px;
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 36px 40px 32px;
+      box-shadow: 0 4px 24px #00000022;
+    }
+    .preview-empty {
+      color: #57606a;
+      font-size: 13px;
+    }
+    .preview-card h1 { color: #1f2328; }
+    .preview-card .subtitle { color: #57606a; }
+    .preview-section {
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .preview-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .preview-section h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1f2328;
+      margin-bottom: 4px;
+    }
+    .preview-table-wrap {
+      overflow-x: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    table.preview-table {
+      border-collapse: collapse;
+      width: auto;
+      max-width: 100%;
+      font-size: 10px;
+      table-layout: auto;
+      line-height: 1.2;
+    }
+    table.preview-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    table.preview-table th {
+      padding: 2px 6px;
+      font-weight: 700;
+      white-space: normal;
+      word-break: break-word;
+      text-align: center;
+      color: #1f2328;
+    }
+    table.preview-table td {
+      padding: 1px 6px;
+      white-space: normal;
+      word-break: break-word;
+      border-bottom: 1px solid #f0f2f5;
+      color: #1f2328;
+    }
+    table.preview-table tr.grand-total td {
+      font-weight: 700;
+      border-top: 2px solid #FF6600;
+      border-bottom: none;
+      color: #1f2328;
+    }
+    .preview-note {
+      font-size: 11px;
+      color: #57606a;
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .preview-title-bar {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 0;
+      color: #1f2328;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--cyan);
+      letter-spacing: 0.02em;
+    }
+    .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 28px; }
+
+    /* Section divider */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0 20px;
+    }
+    .section-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+    /* Optional badge */
+    .optional-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid #00c8ff33;
+      border-radius: 10px;
+      padding: 1px 7px;
+      margin-left: 6px;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Drop zones ── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      margin-bottom: 20px;
+      position: relative;
+      background: var(--surface-2);
+    }
+    .drop-zone.drag-over {
+      border-color: var(--cyan);
+      background: var(--cyan-dim);
+      box-shadow: 0 0 18px #00c8ff22;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 12px;
+      color: var(--text-muted);
+    }
+    .drop-label { font-weight: 600; font-size: 14px; color: var(--text); }
+    .drop-hint  { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* NPS drop zone */
+    .drop-zone.nps { padding: 20px 24px; border-color: #00e5b033; }
+    .drop-zone.nps.drag-over { border-color: var(--green); background: var(--green-dim); }
+    .drop-zone.nps .drop-icon { color: var(--green); width: 28px; height: 28px; margin-bottom: 8px; }
+    .drop-zone.nps .drop-label { font-size: 13px; }
+
+    /* NPS lookup drop zone */
+    .drop-zone.nps-lookup { padding: 20px 24px; border-color: #ffb34733; }
+    .drop-zone.nps-lookup.drag-over { border-color: var(--amber); background: var(--amber-dim); }
+    .drop-zone.nps-lookup .drop-icon { color: var(--amber); width: 28px; height: 28px; margin-bottom: 8px; }
+    .drop-zone.nps-lookup .drop-label { font-size: 13px; }
+
+    /* Aging drop zone */
+    .drop-zone.aging { padding: 20px 24px; border-color: #ff4d6d33; }
+    .drop-zone.aging.drag-over { border-color: var(--red); background: #ff4d6d15; }
+    .drop-zone.aging .drop-icon { color: var(--red); width: 28px; height: 28px; margin-bottom: 8px; }
+    .drop-zone.aging .drop-label { font-size: 13px; }
+
+    /* Contracts drop zone */
+    .drop-zone.contracts { padding: 20px 24px; border-color: #a78bfa33; }
+    .drop-zone.contracts.drag-over { border-color: var(--purple); background: var(--purple-dim); }
+    .drop-zone.contracts .drop-icon { color: var(--purple); width: 28px; height: 28px; margin-bottom: 8px; }
+    .drop-zone.contracts .drop-label { font-size: 13px; }
+
+    /* Screenshot drop zone */
+    .drop-zone.screenshot {
+      padding: 28px 24px;
+      border-color: #a78bfa33;
+      border-style: dashed;
+      border-width: 2px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      position: relative;
+      text-align: center;
+      margin-bottom: 0;
+      background: var(--surface-2);
+    }
+    .drop-zone.screenshot.drag-over,
+    .drop-zone.screenshot.has-image {
+      border-color: var(--purple);
+      background: var(--purple-dim);
+      box-shadow: 0 0 18px #a78bfa22;
+    }
+    .drop-zone.screenshot .drop-icon { color: var(--purple); width: 32px; height: 32px; margin-bottom: 10px; }
+    .drop-zone.screenshot input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    /* ── Chosen-file banners ── */
+    .file-chosen, .nps-chosen, .nps-lookup-chosen, .aging-chosen, .contracts-chosen {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .file-chosen         { background: var(--green-dim);   border: 1px solid #00e5b033; color: var(--green);  margin-bottom: 20px; }
+    .nps-chosen          { background: var(--green-dim);   border: 1px solid #00e5b033; color: var(--green);  }
+    .nps-lookup-chosen   { background: var(--amber-dim);   border: 1px solid #ffb34733; color: var(--amber);  }
+    .aging-chosen        { background: #ff4d6d15;          border: 1px solid #ff4d6d33; color: var(--red);    }
+    .contracts-chosen    { background: var(--purple-dim);  border: 1px solid #a78bfa33; color: var(--purple); }
+    .file-chosen.visible, .nps-chosen.visible, .nps-lookup-chosen.visible,
+    .aging-chosen.visible, .contracts-chosen.visible { display: flex; }
+
+    .clear-btn, .file-chosen .clear-btn, .nps-chosen .clear-btn,
+    .nps-lookup-chosen .clear-btn, .aging-chosen .clear-btn, .contracts-chosen .clear-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .clear-btn:hover { color: var(--red) !important; }
+
+    /* Sheet picker */
+    .sheet-picker {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .sheet-picker.visible { display: flex; }
+    .sheet-picker label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .sheet-picker select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .sheet-picker select:focus { outline: 2px solid var(--cyan); outline-offset: 1px; }
+
+    /* Generate button */
+    .btn-generate {
+      display: block;
+      width: 100%;
+      padding: 11px;
+      background: linear-gradient(90deg, #0099cc, #00c8ff);
+      color: #000d1a;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s, box-shadow 0.15s;
+      letter-spacing: 0.03em;
+      box-shadow: 0 0 14px #00c8ff44;
+    }
+    .btn-generate:hover:not(:disabled) { opacity: 0.88; box-shadow: 0 0 22px #00c8ff66; }
+    .btn-generate:disabled { background: #0d2d44; color: #2a5070; cursor: not-allowed; box-shadow: none; }
+
+    /* Progress / status */
+    .status {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      min-height: 20px;
+      text-align: center;
+    }
+    .status.error   { color: var(--red); }
+    .status.success { color: var(--green); font-weight: 600; }
+
+    .progress-bar-wrap {
+      margin-top: 10px;
+      background: var(--surface-2);
+      border-radius: 99px;
+      height: 6px;
+      overflow: hidden;
+      display: none;
+      border: 1px solid var(--border);
+    }
+    .progress-bar-wrap.visible { display: block; }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #0099cc, #00c8ff);
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.2s;
+      box-shadow: 0 0 8px #00c8ffaa;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 28px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+
+    /* ── MTD card ── */
+    .mtd-card {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    /* Screenshot preview */
+    #ssPreviewWrap {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    #ssPreviewWrap.visible { display: flex; }
+    #ssPreviewImg {
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-2);
+    }
+    .ss-clear-btn {
+      align-self: flex-end;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 3px 10px;
+    }
+    .ss-clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* Month/Year row */
+    .mtd-month-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      margin-bottom: 4px;
+    }
+    .mtd-month-row label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .mtd-month-row input {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface-2);
+    }
+    .mtd-month-row input:focus { outline: 2px solid var(--purple); outline-offset: 1px; }
+    .mtd-month-row input::placeholder { color: var(--text-muted); }
+
+    /* Analyze / Generate MTD button */
+    .btn-analyze {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(90deg, #6d28d9, #a78bfa);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s, box-shadow 0.15s;
+      margin-top: 16px;
+      letter-spacing: 0.03em;
+      box-shadow: 0 0 14px #a78bfa33;
+    }
+    .btn-analyze:hover:not(:disabled) { opacity: 0.88; box-shadow: 0 0 22px #a78bfa55; }
+    .btn-analyze:disabled { background: #1e1438; color: #3d2d6a; cursor: not-allowed; box-shadow: none; }
+
+    /* MTD output */
+    .mtd-output-wrap { margin-top: 20px; display: none; }
+    .mtd-output-wrap.visible { display: block; }
+    .mtd-output-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    #mtdParagraph {
+      width: 100%;
+      min-height: 260px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--surface-2);
+      white-space: pre-wrap;
+      resize: vertical;
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    }
+    #mtdParagraph:focus { outline: 2px solid var(--purple); outline-offset: 1px; background: #0f1e38; }
+
+    /* Copy button */
+    .btn-copy-mtd {
+      margin-top: 10px;
+      padding: 8px 18px;
+      background: linear-gradient(90deg, #0099cc, #00c8ff);
+      color: #000d1a;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, box-shadow 0.15s;
+      box-shadow: 0 0 10px #00c8ff33;
+    }
+    .btn-copy-mtd:hover { opacity: 0.88; box-shadow: 0 0 18px #00c8ff55; }
+
+    /* MTD status */
+    .mtd-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+    .mtd-status.error   { color: var(--red); }
+    .mtd-status.success { color: var(--green); font-weight: 600; }
+
+    .mtd-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+<div class="left-col">
+<div class="card">
+  <h1>Daily Metrics Report Generator</h1>
+  <p class="subtitle">Upload any <strong>.xlsx</strong> file, then choose which sheet contains your raw data.</p>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop your Excel file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; .xlsx / .xlsm</div>
+  </div>
+
+  <!-- Chosen file indicator -->
+  <div class="file-chosen" id="fileChosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="fileName">—</span>
+    <button class="clear-btn" id="clearBtn" title="Remove file">✕</button>
+  </div>
+
+  <!-- Sheet selector (shown after file is loaded) -->
+  <div class="sheet-picker" id="sheetPicker">
+    <label for="sheetSelect">Select data source sheet</label>
+    <select id="sheetSelect"></select>
+  </div>
+
+  <hr class="section-divider" />
+  <p class="section-label">NPS Report <span class="optional-badge">Optional</span></p>
+
+  <!-- NPS drop zone -->
+  <div class="drop-zone nps" id="npsDropZone">
+    <input type="file" id="npsFileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop your NPS Excel file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; needs an <strong>NPS Comment</strong> sheet</div>
+  </div>
+
+  <!-- NPS chosen file indicator -->
+  <div class="nps-chosen" id="npsChosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="npsFileName">—</span>
+    <button class="clear-btn" id="npsClearBtn" title="Remove NPS file">✕</button>
+  </div>
+
+  <p class="section-label" style="font-size:11px; margin-top:14px; margin-bottom:10px;">
+    Owner Lookup Fallback <span class="optional-badge">Optional</span>
+  </p>
+
+  <!-- NPS Owner Lookup fallback file -->
+  <div class="drop-zone nps-lookup" id="npsLookupDropZone">
+    <input type="file" id="npsLookupFileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop fallback owner lookup file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; needs <strong>Request #</strong> &amp; <strong>Request Owner</strong> columns</div>
+  </div>
+
+  <!-- NPS lookup chosen file indicator -->
+  <div class="nps-lookup-chosen" id="npsLookupChosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="npsLookupFileName">—</span>
+    <button class="clear-btn" id="npsLookupClearBtn" title="Remove lookup file">✕</button>
+  </div>
+
+  <!-- NPS Owner Lookup fallback file #2 (checked if still blank after fallback #1) -->
+  <div class="drop-zone nps-lookup" id="npsLookup2DropZone">
+    <input type="file" id="npsLookup2FileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop second fallback owner lookup file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; checked if still blank after fallback #1</div>
+  </div>
+
+  <!-- NPS lookup #2 chosen file indicator -->
+  <div class="nps-lookup-chosen" id="npsLookup2Chosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="npsLookup2FileName">—</span>
+    <button class="clear-btn" id="npsLookup2ClearBtn" title="Remove second lookup file">✕</button>
+  </div>
+
+  <hr class="section-divider" />
+  <p class="section-label">Aging Report <span class="optional-badge">Optional</span></p>
+
+  <!-- Aging report drop zone -->
+  <div class="drop-zone aging" id="agingDropZone">
+    <input type="file" id="agingFileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop your Aging Report Excel file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; needs <strong>Request Type</strong>, <strong>Aging Duration</strong> &amp; <strong>Last Update Duration</strong></div>
+  </div>
+
+  <!-- Aging chosen file indicator -->
+  <div class="aging-chosen" id="agingChosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="agingFileName">—</span>
+    <button class="clear-btn" id="agingClearBtn" title="Remove aging file">✕</button>
+  </div>
+
+  <hr class="section-divider" />
+  <p class="section-label">Contracts per CSR <span class="optional-badge">Optional</span></p>
+
+  <!-- Contracts drop zone -->
+  <div class="drop-zone contracts" id="contractsDropZone">
+    <input type="file" id="contractsFileInput" accept=".xlsx,.xlsm" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <div class="drop-label">Drop your Contracts Excel file here</div>
+    <div class="drop-hint">or click to browse &nbsp;·&nbsp; needs a CSR &amp; Contract column</div>
+  </div>
+
+  <!-- Contracts chosen file indicator -->
+  <div class="contracts-chosen" id="contractsChosen">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="contractsFileName">—</span>
+    <button class="clear-btn" id="contractsClearBtn" title="Remove Contracts file">✕</button>
+  </div>
+
+  <button class="btn-generate" id="generateBtn" disabled>Generate Report</button>
+
+  <div class="status" id="status"></div>
+  <div class="progress-bar-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="footer">Made with IBM Bob</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--  MTD METRICS PARAGRAPH GENERATOR                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card mtd-card">
+  <h1>MTD Metrics Paragraph</h1>
+  <p class="subtitle">Generate a report first — the paragraph auto-populates from it. Paste the <strong>dashboard screenshot</strong> as a reference for Squad Sentiments.</p>
+
+  <!-- Screenshot drop / paste zone -->
+  <div class="drop-zone screenshot" id="ssDropZone">
+    <input type="file" id="ssFileInput" accept="image/*" />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M2.25 15.75l5.16-5.16a2.25 2.25 0 013.18 0l5.16 5.16m-1.5-1.5l1.41-1.41a2.25 2.25 0 013.18 0l2.91 2.91M3 19.5h18M12 3v9m0 0l-3-3m3 3l3-3"/>
+    </svg>
+    <div class="drop-label">Drop or click to upload screenshot</div>
+    <div class="drop-hint">or press <kbd style="font-size:11px;background:#f0f2f5;border:1px solid #c9d1da;border-radius:3px;padding:0 4px;">Ctrl+V</kbd> to paste from clipboard</div>
+  </div>
+
+  <!-- Preview of pasted/uploaded image -->
+  <div id="ssPreviewWrap">
+    <img id="ssPreviewImg" src="" alt="Screenshot preview" />
+    <button class="ss-clear-btn" id="ssClearBtn">✕ Remove</button>
+  </div>
+
+  <!-- OCR status -->
+  <div id="ocrStatus" style="display:none;margin-top:10px;padding:8px 12px;background:#f0f6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;color:#3b82d4;"></div>
+
+  <!-- Month / Year input -->
+  <div class="mtd-month-row">
+    <label for="mtdMonthInput">Month &amp; Year</label>
+    <input type="text" id="mtdMonthInput" placeholder="e.g. August 2026" />
+  </div>
+  <p class="mtd-hint">Type the reporting month and year. The paragraph fills automatically after <em>Generate Report</em>.</p>
+
+  <button class="btn-analyze" id="analyzeBtn">Generate MTD Paragraph</button>
+
+  <!-- Output paragraph -->
+  <div class="mtd-output-wrap" id="mtdOutputWrap">
+    <p class="mtd-output-label">Generated Paragraph — edit as needed</p>
+    <textarea id="mtdParagraph" spellcheck="true"></textarea>
+    <button class="btn-copy-mtd" id="copyMtdBtn">Copy to Clipboard</button>
+    <div class="mtd-status" id="mtdStatus"></div>
+  </div>
+
+  <div class="footer">Made with IBM Bob</div>
+</div>
+</div><!-- end .left-col -->
+
+<div class="card preview-card" id="previewCard">
+  <h1>Report Preview</h1>
+  <p class="subtitle">Quick view of the sheets in your last generated report.</p>
+  <div id="previewContent">
+    <p class="preview-empty">No report generated yet.</p>
+  </div>
+</div>
+</div><!-- end .layout -->
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// MTD SCREENSHOT SECTION
+// ─────────────────────────────────────────────────────────────────────────────
+(function () {
+  const ssDropZone    = document.getElementById('ssDropZone');
+  const ssFileInput   = document.getElementById('ssFileInput');
+  const ssPreviewWrap = document.getElementById('ssPreviewWrap');
+  const ssPreviewImg  = document.getElementById('ssPreviewImg');
+  const ssClearBtn    = document.getElementById('ssClearBtn');
+  const analyzeBtn    = document.getElementById('analyzeBtn');
+  const mtdMonthInput = document.getElementById('mtdMonthInput');
+  const mtdOutputWrap = document.getElementById('mtdOutputWrap');
+  const mtdParagraph  = document.getElementById('mtdParagraph');
+  const copyMtdBtn    = document.getElementById('copyMtdBtn');
+  const mtdStatus     = document.getElementById('mtdStatus');
+
+  // ── shared data store — populated by pipeline AND manual quick-fill ─
+  let currentData = {};
+
+  // ── helpers ──────────────────────────────────────────────────────
+  function setMtdStatus(msg, type) {
+    mtdStatus.textContent = msg;
+    mtdStatus.className = 'mtd-status' + (type ? ' ' + type : '');
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Could not read image file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── OCR: extract NPS + Sentiment values from screenshot ──────────
+  const ocrStatusEl = document.getElementById('ocrStatus');
+
+  function setOcrStatus(msg, color) {
+    ocrStatusEl.style.display = msg ? 'block' : 'none';
+    ocrStatusEl.style.color   = color || '#3b82d4';
+    ocrStatusEl.style.background = color === '#166534' ? '#f0fdf4' : color === '#b91c1c' ? '#fef2f2' : '#f0f6ff';
+    ocrStatusEl.style.borderColor = color === '#166534' ? '#bbf7d0' : color === '#b91c1c' ? '#fecaca' : '#bfdbfe';
+    ocrStatusEl.textContent   = msg;
+  }
+
+  // Parse known patterns from OCR text output
+  function parseDashboardText(text) {
+    const extracted = {};
+    // NPS score — "NPS 97.6" (OCR may produce "NPS97.6" or "NPS 97.6")
+    const npsM = text.match(/NPS\s*(?:Score)?\s*[:\-]?\s*([\d]+\.?[\d]*)/i);
+    if (npsM) extracted.npsScore = npsM[1];
+    // Ratings — "Ratings 42" but NOT "Rating Submitters"
+    const ratM = text.match(/\bRatings?\s+([\d]+)(?!\s*Submitter)/i);
+    if (ratM) extracted.npsRatings = ratM[1];
+    // Sentiment score — "Sentiment 4.3"
+    const sentM = text.match(/\bSentiment\b\s+([\d]+\.?[\d]*)/i);
+    if (sentM) extracted.sentimentScore = sentM[1];
+    // Responses — "Responses 61"
+    const respM = text.match(/\bResponses?\s+([\d]+)/i);
+    if (respM) extracted.sentimentResponses = respM[1];
+    // Submitters — second occurrence = Squad block (first = Rating Submitters)
+    const allSubM = [...text.matchAll(/\bSubmitters?\s+([\d]+)/gi)];
+    if (allSubM.length >= 2) extracted.sentimentSubmitters = allSubM[1][1];
+    else if (allSubM.length === 1) extracted.sentimentSubmitters = allSubM[0][1];
+    return extracted;
+  }
+
+  async function runOcrOnImage(dataUrl) {
+    if (typeof Tesseract === 'undefined') {
+      setOcrStatus('⚠ OCR library not loaded — check internet connection.', '#b91c1c');
+      return;
+    }
+    setOcrStatus('🔍 Reading screenshot… (this takes a few seconds)', '#3b82d4');
+    try {
+      const result = await Tesseract.recognize(dataUrl, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const pct = Math.round((m.progress || 0) * 100);
+            setOcrStatus(`🔍 Reading screenshot… ${pct}%`, '#3b82d4');
+          }
+        }
+      });
+      const text = result.data.text;
+      const extracted = parseDashboardText(text);
+      const found = Object.keys(extracted).length;
+      if (found > 0) {
+        Object.assign(currentData, extracted);
+        showParagraph();
+        setOcrStatus(`✓ Auto-extracted ${found} value${found > 1 ? 's' : ''} from screenshot (NPS + Sentiments).`, '#166534');
+        setTimeout(() => setOcrStatus('', ''), 5000);
+      } else {
+        setOcrStatus('⚠ Could not find NPS/Sentiment values in screenshot. Fill in the yellow fields below manually.', '#d97706');
+        setTimeout(() => setOcrStatus('', ''), 6000);
+      }
+    } catch (err) {
+      setOcrStatus('⚠ OCR failed — fill in the yellow fields manually.', '#b91c1c');
+      console.error('Tesseract OCR error:', err);
+    }
+  }
+
+  // ── show/refresh the paragraph and quick-fill form ───────────────
+  function showParagraph() {
+    const month = mtdMonthInput.value.trim() || '___';
+    mtdParagraph.value = buildParagraph(month, currentData);
+    mtdOutputWrap.classList.add('visible');
+    // Ensure quick-fill form exists
+    if (!document.getElementById('quickFillForm')) renderQuickFillForm();
+    else populateFormInputs(currentData);
+  }
+
+  // ── shared handler: show image + trigger OCR ─────────────────────
+  async function loadScreenshot(dataUrl) {
+    ssPreviewImg.src = dataUrl;
+    ssPreviewWrap.classList.add('visible');
+    ssDropZone.classList.add('has-image');
+    await runOcrOnImage(dataUrl);
+  }
+
+  // ── screenshot: file input ───────────────────────────────────────
+  ssFileInput.addEventListener('change', async () => {
+    const file = ssFileInput.files[0];
+    if (!file || !file.type.startsWith('image/')) { setMtdStatus('Please select an image file.', 'error'); return; }
+    const url = await fileToDataUrl(file);
+    await loadScreenshot(url);
+  });
+
+  // ── screenshot: drag & drop ──────────────────────────────────────
+  ssDropZone.addEventListener('dragover', e => { e.preventDefault(); ssDropZone.classList.add('drag-over'); });
+  ssDropZone.addEventListener('dragleave', () => ssDropZone.classList.remove('drag-over'));
+  ssDropZone.addEventListener('drop', async e => {
+    e.preventDefault();
+    ssDropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.type.startsWith('image/')) { setMtdStatus('Only image files are supported.', 'error'); return; }
+    const url = await fileToDataUrl(file);
+    await loadScreenshot(url);
+  });
+
+  // ── screenshot: clipboard paste ──────────────────────────────────
+  document.addEventListener('paste', async e => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        const url = await fileToDataUrl(blob);
+        await loadScreenshot(url);
+        break;
+      }
+    }
+  });
+
+  // ── clear screenshot button ───────────────────────────────────────
+  ssClearBtn.addEventListener('click', () => {
+    ssPreviewImg.src = '';
+    ssPreviewWrap.classList.remove('visible');
+    ssDropZone.classList.remove('has-image');
+    ssFileInput.value = '';
+  });
+
+  // ── "Generate MTD Paragraph" button ──────────────────────────────
+  analyzeBtn.addEventListener('click', () => {
+    showParagraph();
+    setMtdStatus('Paragraph generated — fill in Squad Sentiments from the screenshot above.', 'success');
+    setTimeout(() => setMtdStatus('', ''), 4000);
+  });
+
+  // ── pipeline hook: called by runPipeline after report is generated ─
+  window._mtdAutoFill = function(data) {
+    Object.assign(currentData, data);
+
+    // Auto-generate paragraph immediately — no need to click the button
+    showParagraph();
+
+    setMtdStatus('✓ Report data loaded — Squad Sentiments still need to be filled in manually.', 'success');
+    setTimeout(() => setMtdStatus('', ''), 5000);
+  };
+
+  function populateFormInputs(data) {
+    const form = document.getElementById('quickFillForm');
+    if (!form) return;
+    form.querySelectorAll('input[data-key]').forEach(inp => {
+      const val = data[inp.dataset.key];
+      if (val !== undefined && val !== null && val !== '') {
+        inp.value = String(val);
+      }
+    });
+  }
+
+  // ── paragraph builder ─────────────────────────────────────────────
+  function buildParagraph(month, d) {
+    // d keys (all optional, fall back to '___'):
+    //   contractRegDays, contractRegSRs
+    //   billingDays, billingSRs
+    //   arDays, arSRs
+    //   closureDays, closureSRs
+    //   npsScore, npsRatings
+    //   sentimentScore, sentimentResponses, sentimentSubmitters
+    const v = k => (d[k] !== undefined && d[k] !== null && d[k] !== '') ? d[k] : '___';
+
+    return [
+      `🌸 Here are our MTD Metrics for ${month}:`,
+      ``,
+      `⏱ Below is the detailed Individual CT per Process`,
+      `Contract Registration: ${v('contractRegDays')} days, ${v('contractRegSRs')} SRs Completed`,
+      `Billing & Invoicing Process: ${v('billingDays')} days, ${v('billingSRs')} SRs Completed`,
+      `AR Dispute Management: ${v('arDays')} days, ${v('arSRs')} SRs Completed`,
+      `Contract or Work Number Closure/Management: ${v('closureDays')} days, ${v('closureSRs')} SRs Completed`,
+      ``,
+      `📊 NPS SCORE: we are at ${v('npsScore')}% with ${v('npsRatings')} ratings received.`,
+      ``,
+      `💬 SQUAD SENTIMENTS: ${v('sentimentScore')} Sentiments with ${v('sentimentResponses')} Responses and ${v('sentimentSubmitters')} submitters.`,
+      ``,
+      `💬 Please reach out to our Squad Leader/SP/AP or ping it here if you have help needed, issues, concerns, feedback and if you're happy or grateful feel free to express it thru ES pulse.`,
+      ``,
+      `Aging SRs`,
+      `Please make sure to toggle ES status/activity at least once every 3 days and put comments, if possible. Thank you. (FYI for yellow highlighted requests)`,
+    ].join('\n');
+  }
+
+  // ── copy button ───────────────────────────────────────────────────
+  copyMtdBtn.addEventListener('click', () => {
+    const text = mtdParagraph.value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setMtdStatus('Copied to clipboard!', 'success');
+      setTimeout(() => setMtdStatus('', ''), 2000);
+    }).catch(() => {
+      // Fallback for browsers that block clipboard API
+      mtdParagraph.select();
+      document.execCommand('copy');
+      setMtdStatus('Copied to clipboard!', 'success');
+      setTimeout(() => setMtdStatus('', ''), 2000);
+    });
+  });
+
+  // ── quick-fill form ───────────────────────────────────────────────
+  // Live-sync: when user edits the textarea, keep form in sync
+  mtdParagraph.addEventListener('input', () => {
+    const existing = document.getElementById('quickFillForm');
+    if (!existing) renderQuickFillForm();
+  });
+
+  function renderQuickFillForm() {
+    const fields = [
+      { key: 'contractRegDays',       label: 'Contract Registration — Avg CT Days' },
+      { key: 'contractRegSRs',        label: 'Contract Registration — SRs Completed' },
+      { key: 'billingDays',           label: 'Billing & Invoicing — Avg CT Days' },
+      { key: 'billingSRs',            label: 'Billing & Invoicing — SRs Completed' },
+      { key: 'arDays',                label: 'AR Dispute Mgmt — Avg CT Days' },
+      { key: 'arSRs',                 label: 'AR Dispute Mgmt — SRs Completed' },
+      { key: 'closureDays',           label: 'Contract/Work Number Closure — Avg CT Days' },
+      { key: 'closureSRs',            label: 'Contract/Work Number Closure — SRs Completed' },
+      { key: 'npsScore',              label: 'NPS Score (%)' },
+      { key: 'npsRatings',            label: 'NPS Ratings Received' },
+      { key: 'sentimentScore',        label: 'Squad Sentiment Score' },
+      { key: 'sentimentResponses',    label: 'Squad Sentiment Responses' },
+      { key: 'sentimentSubmitters',   label: 'Squad Sentiment Submitters' },
+    ];
+
+    const form = document.createElement('div');
+    form.id = 'quickFillForm';
+    form.style.cssText = 'margin-top:16px;padding:14px;background:#f7f8fa;border:1px solid #e5e7eb;border-radius:8px;';
+
+    const title = document.createElement('p');
+    title.textContent = 'Quick-fill blanks';
+    title.style.cssText = 'font-size:11px;font-weight:700;color:#57606a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;';
+    form.appendChild(title);
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;';
+
+    // Keys that come from the dashboard screenshot (not the Excel pipeline)
+    const screenshotKeys = new Set(['npsScore','npsRatings','sentimentScore','sentimentResponses','sentimentSubmitters']);
+
+    fields.forEach(({ key, label }) => {
+      const fromSS = screenshotKeys.has(key);
+      const wrap = document.createElement('label');
+      wrap.style.cssText = `display:flex;flex-direction:column;gap:3px;font-size:12px;color:#1f2328;${fromSS ? 'background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:5px 7px;' : ''}`;
+      wrap.textContent = label + (fromSS ? ' 📊' : '');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.dataset.key = key;
+      inp.style.cssText = `padding:5px 8px;border:1px solid ${fromSS ? '#fde68a' : '#c9d1da'};border-radius:5px;font-size:12px;background:${fromSS ? '#fffdf0' : '#fff'};`;
+      inp.placeholder = fromSS ? 'from dashboard' : '';
+      inp.addEventListener('input', () => applyQuickFill());
+      wrap.appendChild(inp);
+      grid.appendChild(wrap);
+    });
+
+    form.appendChild(grid);
+    mtdOutputWrap.appendChild(form);
+    // After rendering form, immediately pre-fill from currentData
+    populateFormInputs(currentData);
+  }
+
+  function applyQuickFill() {
+    const form = document.getElementById('quickFillForm');
+    if (!form) return;
+    const month = mtdMonthInput.value.trim() || '___';
+    // Merge form inputs on top of currentData so pipeline values persist
+    const d = Object.assign({}, currentData);
+    form.querySelectorAll('input[data-key]').forEach(inp => {
+      const v = inp.value.trim();
+      if (v) d[inp.dataset.key] = v;
+    });
+    mtdParagraph.value = buildParagraph(month, d);
+  }
+
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG  (mirrors daily_metrics_report.py)
+// ─────────────────────────────────────────────────────────────────────────────
+const REQUEST_TYPES = [
+  "AR Dispute Management",
+  "Billing",
+  "Contract Registration / Order / Purchase Order (PO) Submission",
+  "Contract or Work Number Closure / Management",
+];
+
+const HEADER_FILL = { fgColor: { rgb: "4472C4" } };
+const HEADER_FONT = { color: { rgb: "FFFFFF" }, bold: true };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPORT PREVIEW PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+const previewContentEl = document.getElementById("previewContent");
+
+// Converts an ARGB hex string ("FFE36C09") to a CSS hex colour ("#E36C09").
+function argbToHex(argb) {
+  if (!argb) return "#44546A";
+  return "#" + argb.slice(-6);
+}
+
+// Renders the "Report Preview" side panel as real HTML tables mirroring the
+// generated Excel sheets' colours and layout.
+// sections: [{
+//   title, headerColor (ARGB), columns: [string], align: [string]?,
+//   colWidths: [number]? (percentages summing to 100 — forces a fixed layout
+//              so columns line up consistently across multiple tables),
+//   rows: [{ values: [...], grand?: bool, bg?: string (ARGB row fill),
+//            cellBg?: { [colIndex]: ARGB } }],
+//   note?: string
+// }]
+function renderPreview(sections) {
+  const visibleSections = sections.filter(s => s.rows && s.rows.length);
+  if (!visibleSections.length) {
+    previewContentEl.innerHTML = '<p class="preview-empty">No sheets were generated.</p>';
+    return;
+  }
+  previewContentEl.innerHTML = visibleSections.map(s => {
+    const headerHex = argbToHex(s.headerColor);
+    const align = s.align || s.columns.map(() => "center");
+    const colgroup = s.colWidths
+      ? `<colgroup>${s.colWidths.map(w => `<col style="width:${w}%;">`).join("")}</colgroup>`
+      : "";
+    const tableStyle = s.colWidths ? ' style="table-layout:fixed;width:900px;max-width:900px;"' : "";
+    const theadCells = s.columns.map(c =>
+      `<th style="background:${headerHex};color:#fff;">${escapeHtml(c)}</th>`
+    ).join("");
+    const bodyRows = s.rows.map(r => {
+      const rowStyle = r.bg ? ` style="background:${argbToHex(r.bg)}"` : "";
+      const cells = r.values.map((v, i) => {
+        const cellBg = r.cellBg && r.cellBg[i] ? `background:${argbToHex(r.cellBg[i])};` : "";
+        return `<td style="text-align:${align[i] || "center"};${cellBg}">${escapeHtml(v)}</td>`;
+      }).join("");
+      return `<tr${r.grand ? ' class="grand-total"' : ""}${rowStyle}>${cells}</tr>`;
+    }).join("");
+    return `
+      <div class="preview-section">
+        <h3>${escapeHtml(s.title)}</h3>
+        <div class="preview-table-wrap">
+          <table class="preview-table"${tableStyle}>
+            ${colgroup}
+            <thead><tr>${theadCells}</tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+        ${s.note ? `<p class="preview-note">${escapeHtml(s.note)}</p>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = String(str ?? "");
+  return div.innerHTML;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI WIRING
+// ─────────────────────────────────────────────────────────────────────────────
+const fileInput   = document.getElementById("fileInput");
+const dropZone    = document.getElementById("dropZone");
+const fileChosen  = document.getElementById("fileChosen");
+const fileNameEl  = document.getElementById("fileName");
+const clearBtn    = document.getElementById("clearBtn");
+const generateBtn = document.getElementById("generateBtn");
+const statusEl    = document.getElementById("status");
+const progressWrap= document.getElementById("progressWrap");
+const progressBar = document.getElementById("progressBar");
+
+let chosenFile = null;
+let parsedWorkbook = null;   // holds the XLSX workbook object after initial parse
+
+const sheetPicker = document.getElementById("sheetPicker");
+const sheetSelect = document.getElementById("sheetSelect");
+
+// ── NPS file state ────────────────────────────────────────────────────────────
+const npsFileInput  = document.getElementById("npsFileInput");
+const npsDropZone   = document.getElementById("npsDropZone");
+const npsChosen     = document.getElementById("npsChosen");
+const npsFileNameEl = document.getElementById("npsFileName");
+const npsClearBtn   = document.getElementById("npsClearBtn");
+
+let npsFile = null;
+let npsFileBuffer = null;   // raw ArrayBuffer — parsed synchronously inside runPipeline
+
+// ── NPS owner lookup fallback file state ─────────────────────────────────────
+const npsLookupFileInput  = document.getElementById("npsLookupFileInput");
+const npsLookupDropZone   = document.getElementById("npsLookupDropZone");
+const npsLookupChosen     = document.getElementById("npsLookupChosen");
+const npsLookupFileNameEl = document.getElementById("npsLookupFileName");
+const npsLookupClearBtn   = document.getElementById("npsLookupClearBtn");
+
+let npsLookupFileBuffer = null;
+
+function setNpsLookupFile(file) {
+  if (!file) return;
+  npsLookupFileNameEl.textContent = file.name;
+  npsLookupChosen.classList.add("visible");
+  npsLookupDropZone.style.display = "none";
+  generateBtn.disabled = true;
+  setStatus("Reading lookup file…", "");
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    npsLookupFileBuffer = e.target.result;
+    generateBtn.disabled = false;
+    setStatus("", "");
+  };
+  reader.onerror = () => {
+    setStatus("Could not read lookup file.", "error");
+    clearNpsLookupFile();
+    generateBtn.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearNpsLookupFile() {
+  npsLookupFileBuffer = null;
+  npsLookupFileInput.value = "";
+  npsLookupChosen.classList.remove("visible");
+  npsLookupDropZone.style.display = "";
+}
+
+npsLookupFileInput.addEventListener("change", () => {
+  if (npsLookupFileInput.files[0]) setNpsLookupFile(npsLookupFileInput.files[0]);
+});
+npsLookupClearBtn.addEventListener("click", clearNpsLookupFile);
+npsLookupDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); npsLookupDropZone.classList.add("drag-over");
+});
+npsLookupDropZone.addEventListener("dragleave", () => npsLookupDropZone.classList.remove("drag-over"));
+npsLookupDropZone.addEventListener("drop", (e) => {
+  e.preventDefault(); npsLookupDropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) setNpsLookupFile(f);
+  else setStatus("Please drop an .xlsx or .xlsm file.", "error");
+});
+
+// ── NPS Owner Lookup fallback file #2 state ───────────────────────────────────
+const npsLookup2FileInput  = document.getElementById("npsLookup2FileInput");
+const npsLookup2DropZone   = document.getElementById("npsLookup2DropZone");
+const npsLookup2Chosen     = document.getElementById("npsLookup2Chosen");
+const npsLookup2FileNameEl = document.getElementById("npsLookup2FileName");
+const npsLookup2ClearBtn   = document.getElementById("npsLookup2ClearBtn");
+
+let npsLookup2FileBuffer = null;
+
+function setNpsLookup2File(file) {
+  if (!file) return;
+  npsLookup2FileNameEl.textContent = file.name;
+  npsLookup2Chosen.classList.add("visible");
+  npsLookup2DropZone.style.display = "none";
+  generateBtn.disabled = true;
+  setStatus("Reading second lookup file…", "");
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    npsLookup2FileBuffer = e.target.result;
+    generateBtn.disabled = false;
+    setStatus("", "");
+  };
+  reader.onerror = () => {
+    setStatus("Could not read second lookup file.", "error");
+    clearNpsLookup2File();
+    generateBtn.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearNpsLookup2File() {
+  npsLookup2FileBuffer = null;
+  npsLookup2FileInput.value = "";
+  npsLookup2Chosen.classList.remove("visible");
+  npsLookup2DropZone.style.display = "";
+}
+
+npsLookup2FileInput.addEventListener("change", () => {
+  if (npsLookup2FileInput.files[0]) setNpsLookup2File(npsLookup2FileInput.files[0]);
+});
+npsLookup2ClearBtn.addEventListener("click", clearNpsLookup2File);
+npsLookup2DropZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); npsLookup2DropZone.classList.add("drag-over");
+});
+npsLookup2DropZone.addEventListener("dragleave", () => npsLookup2DropZone.classList.remove("drag-over"));
+npsLookup2DropZone.addEventListener("drop", (e) => {
+  e.preventDefault(); npsLookup2DropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) setNpsLookup2File(f);
+  else setStatus("Please drop an .xlsx or .xlsm file.", "error");
+});
+
+// ── Aging report file state ───────────────────────────────────────────────────
+const agingFileInput  = document.getElementById("agingFileInput");
+const agingDropZone   = document.getElementById("agingDropZone");
+const agingChosen     = document.getElementById("agingChosen");
+const agingFileNameEl = document.getElementById("agingFileName");
+const agingClearBtn   = document.getElementById("agingClearBtn");
+
+let agingFileBuffer = null;
+
+function setAgingFile(file) {
+  if (!file) return;
+  agingFileNameEl.textContent = file.name;
+  agingChosen.classList.add("visible");
+  agingDropZone.style.display = "none";
+  generateBtn.disabled = true;
+  setStatus("Reading aging report file…", "");
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    agingFileBuffer = e.target.result;
+    generateBtn.disabled = false;
+    setStatus("", "");
+  };
+  reader.onerror = () => {
+    setStatus("Could not read aging report file.", "error");
+    clearAgingFile();
+    generateBtn.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearAgingFile() {
+  agingFileBuffer = null;
+  agingFileInput.value = "";
+  agingChosen.classList.remove("visible");
+  agingDropZone.style.display = "";
+}
+
+agingFileInput.addEventListener("change", () => {
+  if (agingFileInput.files[0]) setAgingFile(agingFileInput.files[0]);
+});
+agingClearBtn.addEventListener("click", clearAgingFile);
+agingDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); agingDropZone.classList.add("drag-over");
+});
+agingDropZone.addEventListener("dragleave", () => agingDropZone.classList.remove("drag-over"));
+agingDropZone.addEventListener("drop", (e) => {
+  e.preventDefault(); agingDropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) setAgingFile(f);
+  else setStatus("Please drop an .xlsx or .xlsm file.", "error");
+});
+
+// ── Contracts file state ──────────────────────────────────────────────────────
+const contractsFileInput  = document.getElementById("contractsFileInput");
+const contractsDropZone   = document.getElementById("contractsDropZone");
+const contractsChosen     = document.getElementById("contractsChosen");
+const contractsFileNameEl = document.getElementById("contractsFileName");
+const contractsClearBtn   = document.getElementById("contractsClearBtn");
+
+let contractsFile = null;
+let contractsFileBuffer = null;   // raw ArrayBuffer — parsed synchronously inside runPipeline
+
+function setContractsFile(file) {
+  if (!file) return;
+  contractsFile = file;
+  contractsFileNameEl.textContent = file.name;
+  contractsChosen.classList.add("visible");
+  contractsDropZone.style.display = "none";
+  generateBtn.disabled = true;
+  setStatus("Reading contracts file…", "");
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    contractsFileBuffer = e.target.result;
+    generateBtn.disabled = false;
+    setStatus("", "");
+  };
+  reader.onerror = () => {
+    setStatus("Could not read contracts file.", "error");
+    clearContractsFile();
+    generateBtn.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearContractsFile() {
+  contractsFile = null;
+  contractsFileBuffer = null;
+  contractsFileInput.value = "";
+  contractsChosen.classList.remove("visible");
+  contractsDropZone.style.display = "";
+}
+
+contractsFileInput.addEventListener("change", () => {
+  if (contractsFileInput.files[0]) setContractsFile(contractsFileInput.files[0]);
+});
+contractsClearBtn.addEventListener("click", clearContractsFile);
+contractsDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); contractsDropZone.classList.add("drag-over");
+});
+contractsDropZone.addEventListener("dragleave", () => contractsDropZone.classList.remove("drag-over"));
+contractsDropZone.addEventListener("drop", (e) => {
+  e.preventDefault(); contractsDropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) setContractsFile(f);
+  else setStatus("Please drop an .xlsx or .xlsm file.", "error");
+});
+
+function setNpsFile(file) {
+  if (!file) return;
+  npsFile = file;
+  npsFileNameEl.textContent = file.name;
+  npsChosen.classList.add("visible");
+  npsDropZone.style.display = "none";
+  generateBtn.disabled = true;
+  setStatus("Reading NPS file…", "");
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    npsFileBuffer = e.target.result;   // store raw buffer; parse later
+    generateBtn.disabled = false;
+    setStatus("", "");
+  };
+  reader.onerror = () => {
+    setStatus("Could not read NPS file.", "error");
+    clearNpsFile();
+    generateBtn.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearNpsFile() {
+  npsFile = null;
+  npsFileBuffer = null;
+  npsFileInput.value = "";
+  npsChosen.classList.remove("visible");
+  npsDropZone.style.display = "";
+}
+
+npsFileInput.addEventListener("change", () => {
+  if (npsFileInput.files[0]) setNpsFile(npsFileInput.files[0]);
+});
+npsClearBtn.addEventListener("click", clearNpsFile);
+npsDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); npsDropZone.classList.add("drag-over");
+});
+npsDropZone.addEventListener("dragleave", () => npsDropZone.classList.remove("drag-over"));
+npsDropZone.addEventListener("drop", (e) => {
+  e.preventDefault(); npsDropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) setNpsFile(f);
+  else setStatus("Please drop an .xlsx or .xlsm file.", "error");
+});
+
+function setFile(file) {
+  if (!file) return;
+  chosenFile = file;
+  fileNameEl.textContent = file.name;
+  fileChosen.classList.add("visible");
+  dropZone.style.display = "none";
+  generateBtn.disabled = true;   // wait until sheet list is loaded
+  setStatus("", "");
+  loadSheetNames(file);
+}
+
+function loadSheetNames(file) {
+  setStatus("Reading sheet names…", "");
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      parsedWorkbook = XLSX.read(data, { type: "array", cellDates: true });
+      const names = parsedWorkbook.SheetNames;
+
+      sheetSelect.innerHTML = "";
+      names.forEach((name, i) => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        // Pre-select a sheet called "RAW DATA" if present, else first sheet
+        if (name === "RAW DATA" || (i === 0 && !names.includes("RAW DATA"))) {
+          opt.selected = true;
+        }
+        sheetSelect.appendChild(opt);
+      });
+
+      sheetPicker.classList.add("visible");
+      generateBtn.disabled = false;
+      setStatus("", "");
+    } catch (err) {
+      setStatus("Could not read workbook: " + err.message, "error");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function clearFile() {
+  chosenFile = null;
+  parsedWorkbook = null;
+  fileInput.value = "";
+  fileChosen.classList.remove("visible");
+  sheetPicker.classList.remove("visible");
+  sheetSelect.innerHTML = "";
+  dropZone.style.display = "";
+  generateBtn.disabled = true;
+  setStatus("", "");
+  setProgress(0, false);
+}
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (type ? " " + type : "");
+}
+
+function setProgress(pct, visible) {
+  progressWrap.classList.toggle("visible", visible);
+  progressBar.style.width = pct + "%";
+}
+
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+clearBtn.addEventListener("click", clearFile);
+
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.classList.add("drag-over");
+});
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  const f = e.dataTransfer.files[0];
+  if (f && (f.name.endsWith(".xlsx") || f.name.endsWith(".xlsm"))) {
+    setFile(f);
+  } else {
+    setStatus("Please drop an .xlsx or .xlsm file.", "error");
+  }
+});
+
+generateBtn.addEventListener("click", () => {
+  if (chosenFile) runPipeline(chosenFile);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Round a number to `dp` decimal places, returns null if not finite. */
+function roundOrNull(v, dp = 2) {
+  if (v === null || v === undefined || isNaN(v) || !isFinite(v)) return null;
+  return parseFloat(v.toFixed(dp));
+}
+
+/** Group an array of row-objects by a key, aggregate counts + mean of a numeric field. */
+function groupBy(rows, groupKey, countField, meanField) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = (row[groupKey] ?? "").toString().trim();
+    if (!map.has(key)) map.set(key, { count: 0, sum: 0, validN: 0 });
+    const acc = map.get(key);
+    acc.count++;
+    const v = parseFloat(row[meanField]);
+    if (isFinite(v)) { acc.sum += v; acc.validN++; }
+  }
+  const result = [];
+  for (const [k, acc] of map) {
+    result.push({
+      [groupKey]: k,
+      Requests:    acc.count,
+      Avg_CT_Days: acc.validN > 0 ? roundOrNull(acc.sum / acc.validN) : null,
+    });
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIPELINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runPipeline(file) {
+  generateBtn.disabled = true;
+  setStatus("Processing…", "");
+  setProgress(5, true);
+
+  // Collects preview table specs per sheet as the pipeline runs; rendered at the end.
+  const preview = {
+    summaryAuto: [],   // array of table specs, one per Request Type
+    npsSummary: [],    // array with a single table spec (or empty)
+    contractsMtd: [],  // array with a single table spec (or empty)
+    agingByRt: {},     // { "AR Dispute Management": tableSpec, ... }
+  };
+
+  // Workbook is already parsed in loadSheetNames — reuse it
+  try {
+    const wb_in = parsedWorkbook;
+    const selectedSheet = sheetSelect.value;
+
+    setStatus('Parsing sheet: "' + selectedSheet + '"…', "");
+    setProgress(15, true);
+
+    // ── 1. Load selected sheet as RAW DATA ────────────────────────────────
+    const ws_raw = wb_in.Sheets[selectedSheet];
+    if (!ws_raw) throw new Error('Sheet "' + selectedSheet + '" could not be read.');
+
+    const rawRows = XLSX.utils.sheet_to_json(ws_raw, { defval: null });
+
+      // Normalise column names (strip whitespace)
+      const normRows = rawRows.map(row => {
+        const n = {};
+        for (const [k, v] of Object.entries(row)) n[k.trim()] = v;
+        return n;
+      });
+
+      // Convert CT Days to number (coerce)
+      normRows.forEach(row => {
+        const v = parseFloat(row["CT Days"]);
+        row["CT Days"] = isFinite(v) ? v : null;
+      });
+
+      setProgress(30, true);
+      setStatus("Filtering closed requests…", "");
+
+      // ── 2. Filter closed ──────────────────────────────────────────────────
+      const closedRows = normRows.filter(
+        row => (row["Status"] ?? "").toString().trim() === "Closed"
+      );
+
+      setProgress(40, true);
+      setStatus("Building summary tables…", "");
+
+      // ── 3. Summary tables per Request Type ───────────────────────────────
+      // "Billing and Invoicing" is treated as an alias for "Billing".
+      const RT_ALIASES = {
+        "Billing and Invoicing": "Billing",
+      };
+      const summaryTables = {};
+      for (const rt of REQUEST_TYPES) {
+        const slice = closedRows.filter(row => {
+          const raw = (row["Request Type"] ?? "").toString().trim();
+          return raw === rt || RT_ALIASES[raw] === rt;
+        });
+
+        let byOwner = groupBy(slice, "Request Owner", "Request #", "CT Days");
+        byOwner.sort((a, b) => b.Requests - a.Requests);
+
+        const totalReqs = slice.length;
+        let sumCT = 0, validN = 0;
+        for (const row of slice) {
+          if (row["CT Days"] !== null) { sumCT += row["CT Days"]; validN++; }
+        }
+        const grandAvg = validN > 0 ? roundOrNull(sumCT / validN) : null; // F-07
+
+        byOwner.push({
+          "Request Owner": "Grand Total",
+          Requests: totalReqs,
+          Avg_CT_Days: grandAvg,
+        });
+
+        summaryTables[rt] = byOwner;
+      }
+
+      setProgress(55, true);
+      setStatus("Computing overall summaries…", "");
+
+      // ── 4. Overall aggregations ───────────────────────────────────────────
+      const overallTotal = closedRows.length;
+      let overallSumCT = 0, overallN = 0;
+      closedRows.forEach(row => {
+        if (row["CT Days"] !== null) { overallSumCT += row["CT Days"]; overallN++; }
+      });
+      const overallAvgCT = overallN > 0 ? roundOrNull(overallSumCT / overallN) : null;
+
+      // Request Type summary
+      const rtSummaryMap = new Map();
+      for (const row of closedRows) {
+        const raw = (row["Request Type"] ?? "").toString().trim();
+        const rt = RT_ALIASES[raw] ?? raw;
+        if (!rtSummaryMap.has(rt)) rtSummaryMap.set(rt, { count: 0, sum: 0, n: 0 });
+        const a = rtSummaryMap.get(rt);
+        a.count++;
+        if (row["CT Days"] !== null) { a.sum += row["CT Days"]; a.n++; }
+      }
+      const rtSummaryRows = [];
+      for (const [rt, a] of rtSummaryMap) {
+        rtSummaryRows.push({
+          "Request Type": rt,
+          Requests: a.count,
+          Avg_CT_Days: a.n > 0 ? roundOrNull(a.sum / a.n) : null,
+        });
+      }
+
+      // ── 4b. NPS data (parsed synchronously from stored buffer) ────────────
+      let npsSummaryRows = null;
+      let npsCommentRows = null;
+      let npsCommentHeaders = null;
+      let totNps   = null;   // hoisted so _mtdAutoFill can read them after the if-block
+      let totTotal = 0;
+
+      if (npsFileBuffer) {
+        let npsWb;
+        try {
+          npsWb = XLSX.read(new Uint8Array(npsFileBuffer), { type: "array" });
+        } catch (e) {
+          throw new Error("Could not parse NPS file: " + e.message);
+        }
+
+        const npsSheetName = npsWb.SheetNames.includes("NPS Comment")
+          ? "NPS Comment"
+          : npsWb.SheetNames[0];
+        const npsWs = npsWb.Sheets[npsSheetName];
+
+        // ── Read as array-of-arrays so we get the sheet exactly as stored ───
+        const npsAoa = XLSX.utils.sheet_to_json(npsWs, { header: 1, defval: "" });   // row 0 = headers
+
+        const npsAoaHeader = npsAoa[0] || [];
+
+        // ── Find the NPS join-key column by name (works for any file variant) ─
+        // Matches: "REQUEST__", "Link to ES", "Request #", "LINK_TO_ES", etc.
+        const NPS_JOIN_KEYWORDS = ["REQUEST__", "LINK TO ES", "LINK_TO_ES", "REQUEST #", "REQUEST#"];
+        const NPS_LINK_COL = npsAoaHeader.findIndex(
+          h => NPS_JOIN_KEYWORDS.includes(h.toString().trim().toUpperCase())
+        );
+        if (NPS_LINK_COL < 0) throw new Error(
+          'NPS Comment sheet is missing a recognised request-number column. ' +
+          'Expected one of: ' + NPS_JOIN_KEYWORDS.join(", ")
+        );
+
+        // Filter data rows: keep rows where the join-key cell is non-empty and not a formula error
+        const npsAoaData = npsAoa.slice(1).filter(row => {
+          const key = (row[NPS_LINK_COL] ?? "").toString().trim();
+          return key && !key.startsWith("#");
+        });
+
+        // ── Build lookup: Request # → Request Owner from RAW DATA ────────────
+        // Search normRows keys by name (case-insensitive) — never rely on column index.
+        const rawDataKeys = normRows.length ? Object.keys(normRows[0]) : [];
+        function findRawKey(candidates) {
+          return rawDataKeys.find(
+            k => candidates.includes(k.trim().toUpperCase())
+          ) ?? candidates[0];
+        }
+        const reqNumKey   = findRawKey(["REQUEST #", "REQUEST#", "REQUEST__"]);
+        const reqOwnerKey = findRawKey(["REQUEST OWNER", "REQUESTOWNER"]);
+
+        const ownerByReqNum = new Map();
+        normRows.forEach(r => {
+          const reqNum = (r[reqNumKey] ?? "").toString().trim();
+          if (reqNum) ownerByReqNum.set(reqNum, (r[reqOwnerKey] ?? "").toString().trim());
+        });
+
+        // ── Fallback lookup maps (optional 4th & 5th files) ───────────────────
+        // Scans every sheet of a fallback file for any column matching
+        // Request # keywords → Request Owner keywords, building a lookup map.
+        // `excludeSets` is an array of already-resolved maps — entries already
+        // covered by an earlier stage are skipped so later files never overwrite them.
+        function buildFallbackOwnerMap(buffer, excludeMaps, label) {
+          const map = new Map();
+          if (!buffer) return map;
+          try {
+            const fbWb = XLSX.read(new Uint8Array(buffer), { type: "array" });
+            const REQ_NUM_KW   = ["REQUEST #", "REQUEST#", "REQUEST__", "ES#", "ES #", "LINK TO ES", "REQUEST NUMBER"];
+            const REQ_OWNER_KW = ["REQUEST OWNER", "REQUESTOWNER", "OWNER", "CSR", "ASSIGNED TO", "AGENT"];
+
+            fbWb.SheetNames.forEach(sName => {
+              const fbWs  = fbWb.Sheets[sName];
+              const fbAoa = XLSX.utils.sheet_to_json(fbWs, { header: 1, defval: "" });
+              if (!fbAoa.length) return;
+              const fbHdr = fbAoa[0].map(h => h.toString().trim().toUpperCase());
+              const fbReqIdx   = fbHdr.findIndex(h => REQ_NUM_KW.includes(h));
+              const fbOwnerIdx = fbHdr.findIndex(h => REQ_OWNER_KW.includes(h));
+              if (fbReqIdx < 0 || fbOwnerIdx < 0) return;  // sheet doesn't have both columns
+
+              fbAoa.slice(1).forEach(row => {
+                const reqNum = (row[fbReqIdx]   ?? "").toString().trim();
+                const owner  = (row[fbOwnerIdx] ?? "").toString().trim();
+                // Only add if not already resolved by an earlier stage
+                const alreadyResolved = excludeMaps.some(m => m.has(reqNum));
+                if (reqNum && owner && !alreadyResolved) {
+                  map.set(reqNum, owner);
+                }
+              });
+            });
+          } catch (e) {
+            // Non-fatal — skip fallback silently if file can't be parsed
+            console.warn(`Could not parse ${label}:`, e.message);
+          }
+          return map;
+        }
+
+        // Stage 1: primary RAW DATA lookup (ownerByReqNum) already built above.
+        // Stage 2: first fallback file — only fills gaps left by stage 1.
+        const fallbackOwnerByReqNum = buildFallbackOwnerMap(
+          npsLookupFileBuffer, [ownerByReqNum], "NPS lookup fallback file #1"
+        );
+        // Stage 3: second fallback file — only fills gaps left by stages 1 & 2.
+        const fallbackOwnerByReqNum2 = buildFallbackOwnerMap(
+          npsLookup2FileBuffer, [ownerByReqNum, fallbackOwnerByReqNum], "NPS lookup fallback file #2"
+        );
+
+        // Three-stage owner resolution: primary → fallback #1 → fallback #2 → blank.
+        function resolveOwner(joinKey) {
+          return ownerByReqNum.get(joinKey)
+              || fallbackOwnerByReqNum.get(joinKey)
+              || fallbackOwnerByReqNum2.get(joinKey)
+              || "";
+        }
+
+        // Prepend col A = "Request Owner" (primary → fallback #1 → fallback #2 → blank).
+        // Col B left blank — formula added per-cell below.
+        const npsAoaDataEnriched = npsAoaData.map(row => {
+          const joinKey = (row[NPS_LINK_COL] ?? "").toString().trim();
+          const owner   = resolveOwner(joinKey);
+          return [owner, "", ...row];   // col B left blank — formula added per-cell below
+        });
+
+        // npsCommentRows/Headers drive the NPS Comment sheet copy
+        npsCommentHeaders = ["Request Owner", "Rating Category", ...npsAoaHeader];
+        npsCommentRows    = npsAoaDataEnriched;   // array-of-arrays, not objects
+
+        // ── NPS Summary aggregation ───────────────────────────────────────────
+        // Find the numeric Rating column in the NPS header (case-insensitive)
+        const NPS_RATING_COL = npsAoaHeader.findIndex(
+          h => h.toString().trim().toUpperCase() === "RATING"
+        );
+
+        // Derive category from numeric rating value (same rule as col B formula)
+        function ratingCategory(val) {
+          const n = parseFloat(val);
+          if (!isFinite(n)) return null;
+          if (n >= 9) return "Promoter";
+          if (n <= 6) return "Detractor";
+          return "Passive";
+        }
+
+        {  // NPS Summary aggregation — runs after both fallback maps are built,
+           // so all lookup sources are available. Rows with no resolved owner are
+           // skipped — they must not appear as request-number rows in the summary.
+        const npsMap = new Map();
+        npsAoaData.forEach(row => {
+          const joinKey = (row[NPS_LINK_COL] ?? "").toString().trim();
+          // Same three-stage lookup used for NPS Comment col A
+          const owner = resolveOwner(joinKey);
+          if (!owner) return;   // unresolved — exclude from summary entirely
+
+          // Category: derived from the numeric Rating column
+          const cat = NPS_RATING_COL >= 0 ? ratingCategory(row[NPS_RATING_COL]) : null;
+
+          if (!npsMap.has(owner)) npsMap.set(owner, { promoters: 0, passives: 0, detractors: 0, total: 0 });
+          const acc = npsMap.get(owner);
+          acc.total++;
+          if (cat === "Promoter")   acc.promoters++;
+          else if (cat === "Passive")    acc.passives++;
+          else if (cat === "Detractor") acc.detractors++;
+        });
+
+        // Build rows — NPS = (promoters/total - detractors/total) * 100
+        npsSummaryRows = [];
+        for (const [name, acc] of npsMap) {
+          const nps = acc.total > 0
+            ? roundOrNull((acc.promoters - acc.detractors) / acc.total * 100)
+            : null;
+          npsSummaryRows.push({
+            "Request Owner": name,
+            "Total Ratings": acc.total,
+            "Promoters":     acc.promoters,
+            "Passives":      acc.passives,
+            "Detractors":    acc.detractors,
+            "NPS Score":     nps,
+          });
+        }
+        // Sort by NPS score descending
+        npsSummaryRows.sort((a, b) => (b["NPS Score"] ?? -999) - (a["NPS Score"] ?? -999));
+
+        // Grand Total row
+        totTotal            = npsSummaryRows.reduce((s, r) => s + r["Total Ratings"], 0);
+        const totPromoters  = npsSummaryRows.reduce((s, r) => s + r["Promoters"],     0);
+        const totPassives   = npsSummaryRows.reduce((s, r) => s + r["Passives"],      0);
+        const totDetractors = npsSummaryRows.reduce((s, r) => s + r["Detractors"],    0);
+        totNps = totTotal > 0
+          ? roundOrNull((totPromoters - totDetractors) / totTotal * 100)
+          : null;
+        npsSummaryRows.push({
+          "Request Owner": "Grand Total",
+          "Total Ratings": totTotal,
+          "Promoters":     totPromoters,
+          "Passives":      totPassives,
+          "Detractors":    totDetractors,
+          "NPS Score":     totNps,
+        });
+
+        }  // end scoped aggregation block
+      }
+
+      // ── 4c. Contracts per CSR pivot (parsed synchronously from stored buffer) ─
+      // Combines all quarterly sheets, derives Year/Quarter/Month from Date Received,
+      // and builds a pivot: rows = CSR, columns = time periods (Year > Quarter > Month).
+      let ctrPivot = null;  // { periods, csrRows, grandTotals }
+
+      if (contractsFileBuffer) {
+        let ctrWb;
+        try {
+          ctrWb = XLSX.read(new Uint8Array(contractsFileBuffer), { type: "array", cellDates: true });
+        } catch (e) {
+          throw new Error("Could not parse contracts file: " + e.message);
+        }
+
+        const CSR_KEYWORDS      = ["CSR", "ASSIGNED TO", "OWNER", "REQUEST OWNER", "AGENT", "ASSIGNEE"];
+        const CONTRACT_KEYWORDS = ["ES#", "ES #", "ES NUMBER", "CONGA #", "CONGA#", "CONTRACT #", "CONTRACT#", "CONTRACT NUMBER", "CONTRACT NO", "CONTRACT ID"];
+        const DATE_KEYWORDS     = ["DATE RECEIVED", "DATE", "RECEIVED DATE", "DATERECEIVED"];
+        const MONTH_NAMES       = ["January","February","March","April","May","June",
+                                   "July","August","September","October","November","December"];
+        const QTR_MAP           = { 1:"Q1",2:"Q1",3:"Q1",4:"Q2",5:"Q2",6:"Q2",
+                                    7:"Q3",8:"Q3",9:"Q3",10:"Q4",11:"Q4",12:"Q4" };
+
+        // Collect all rows from every sheet whose name contains "quarter" (case-insensitive)
+        const allRows = [];
+        ctrWb.SheetNames.forEach(sName => {
+          if (!sName.toLowerCase().includes("quarter")) return;
+          const ws  = ctrWb.Sheets[sName];
+          const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+          if (!aoa.length) return;
+
+          // Find header row — first row that contains the CSR keyword
+          let hdrIdx = 0;
+          for (let i = 0; i < Math.min(5, aoa.length); i++) {
+            const row = aoa[i].map(c => c.toString().trim().toUpperCase());
+            if (CSR_KEYWORDS.some(k => row.includes(k))) { hdrIdx = i; break; }
+          }
+          const headers = aoa[hdrIdx].map(h => h.toString().trim());
+
+          const csrIdx  = headers.findIndex(h => CSR_KEYWORDS.includes(h.toUpperCase()));
+          const ctrIdx  = headers.findIndex(h => CONTRACT_KEYWORDS.includes(h.toUpperCase()));
+          const dateIdx = headers.findIndex(h => DATE_KEYWORDS.includes(h.trim().toUpperCase()));
+
+          if (csrIdx < 0 || ctrIdx < 0 || dateIdx < 0) return; // skip sheets missing needed cols
+
+          aoa.slice(hdrIdx + 1).forEach(row => {
+            const csr      = (row[csrIdx]  ?? "").toString().trim();
+            const contract = (row[ctrIdx]  ?? "").toString().trim();
+            const rawDate  = row[dateIdx];
+            if (!csr || !contract || !rawDate) return;
+
+            // Parse date — SheetJS raw:false gives "M/D/YYYY" or ISO string
+            let d = new Date(rawDate);
+            if (isNaN(d.getTime())) return;  // skip unparseable dates
+
+            const year  = d.getFullYear();
+            const month = d.getMonth() + 1;  // 1-12
+            allRows.push({ csr, contract, year, month,
+                           qtr: QTR_MAP[month],
+                           monthName: MONTH_NAMES[month - 1] });
+          });
+        });
+
+        if (!allRows.length) throw new Error(
+          "Contracts file: no data rows found in quarterly sheets. " +
+          "Make sure sheets contain 'quarter' in their name and have CSR, Conga #, and Date Received columns."
+        );
+
+        // ── Build sorted list of unique time periods ──────────────────────────
+        // period key = "YYYY|Qn|MonthName", used for Map keys and column ordering
+        const periodSet = new Map();  // key → {year, qtr, monthName, month}
+        allRows.forEach(r => {
+          const key = `${r.year}|${r.qtr}|${r.monthName}`;
+          if (!periodSet.has(key)) periodSet.set(key, { year: r.year, qtr: r.qtr, monthName: r.monthName, month: r.month });
+        });
+        // Sort periods chronologically
+        const periods = Array.from(periodSet.values())
+          .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+
+        // ── Aggregate: csrTotals[csr][periodKey] = count ─────────────────────
+        const csrTotals = new Map();  // csr → Map(periodKey → count)
+        allRows.forEach(r => {
+          const key = `${r.year}|${r.qtr}|${r.monthName}`;
+          if (!csrTotals.has(r.csr)) csrTotals.set(r.csr, new Map());
+          const m = csrTotals.get(r.csr);
+          m.set(key, (m.get(key) ?? 0) + 1);
+        });
+
+        // Sort CSRs by total contracts descending
+        const csrList = Array.from(csrTotals.entries())
+          .map(([csr, pMap]) => ({ csr, pMap, total: Array.from(pMap.values()).reduce((s,v)=>s+v,0) }))
+          .sort((a, b) => b.total - a.total);
+
+        // Period grand totals (column totals)
+        const periodTotals = new Map();
+        periods.forEach(p => {
+          const key = `${p.year}|${p.qtr}|${p.monthName}`;
+          periodTotals.set(key, allRows.filter(r => `${r.year}|${r.qtr}|${r.monthName}` === key).length);
+        });
+        const grandTotal = allRows.length;
+
+        ctrPivot = { periods, csrList, periodTotals, grandTotal };
+      }
+
+      setProgress(70, true);
+      setStatus("Writing output workbook…", "");
+
+      // ── 5. Build output workbook using ExcelJS (full style support) ───────
+      const TABLE_THEMES = [
+        // AR Dispute Management  → orange header, light-orange stripe
+        { hdr: "FFE36C09", stripe: "FFFCE4D6", border: { argb: "FFF4B183" } },
+        // Billing                → blue header, light-blue stripe
+        { hdr: "FF4472C4", stripe: "FFDDEBF7", border: { argb: "FFBDD7EE" } },
+        // Contract Registration  → green header, light-green stripe
+        { hdr: "FF76923C", stripe: "FFEBF1DE", border: { argb: "FFD8E4BC" } },
+        // Contract Closure       → dark-red header, light-red stripe
+        { hdr: "FF632523", stripe: "FFF2DCDB", border: { argb: "FFE6B8B7" } },
+      ];
+
+      const wb = new ExcelJS.Workbook();
+
+      // ── Helper: thin border on all sides with a given colour ─────────────
+      function sideBorder(colorArgb) {
+        return { style: "thin", color: { argb: colorArgb } };
+      }
+      function allBorders(colorArgb, bottomStyle, bottomArgb) {
+        return {
+          top:    sideBorder(colorArgb),
+          left:   sideBorder(colorArgb),
+          right:  sideBorder(colorArgb),
+          bottom: { style: bottomStyle || "thin", color: { argb: bottomArgb || colorArgb } },
+        };
+      }
+
+      // ── Helper: auto-fit column widths from data ──────────────────────────
+      function autoFitCols(ws, rows, keys) {
+        keys.forEach((key, i) => {
+          const maxLen = rows.reduce((m, r) => {
+            const v = r[key]; return Math.max(m, v != null ? String(v).length : 0);
+          }, key.length);
+          ws.getColumn(i + 1).width = Math.min(maxLen + 3, 60);
+        });
+      }
+
+      // ── RAW DATA sheet ────────────────────────────────────────────────────
+      const wsRaw = wb.addWorksheet("RAW DATA");
+      if (normRows.length) {
+        const rawKeys = Object.keys(normRows[0]);
+        // Header
+        const rawHdrRow = wsRaw.addRow(rawKeys);
+        rawHdrRow.eachCell(cell => {
+          cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+          cell.font   = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border = allBorders("FF4472C4");
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+        rawHdrRow.height = 20;
+        // Data
+        normRows.forEach(r => wsRaw.addRow(rawKeys.map(k => r[k] ?? "")));
+        autoFitCols(wsRaw, normRows, rawKeys);
+      }
+
+      // ── Summary_Auto sheet ────────────────────────────────────────────────
+      const wsSum = wb.addWorksheet("Summary_Auto");
+      wsSum.getColumn(1).width = 36;
+      wsSum.getColumn(2).width = 14;
+      wsSum.getColumn(3).width = 18;
+
+      REQUEST_TYPES.forEach((rt, rtIdx) => {
+        const table = summaryTables[rt];
+        const theme = TABLE_THEMES[rtIdx] || TABLE_THEMES[0];
+        const hdrArgb   = theme.hdr;
+        const stripeArgb= theme.stripe;
+        const brdArgb   = theme.border.argb;
+
+        // Section title row
+        const titleRow = wsSum.addRow([rt]);
+        titleRow.getCell(1).font = { bold: true, size: 11 };
+        titleRow.height = 16;
+
+        // Table header row — white inner borders so column dividers are visible
+        const hdrRow = wsSum.addRow(["Request Owner", "# of Request", "Average of CT Days"]);
+        hdrRow.height = 30;
+        hdrRow.eachCell((cell, colNum) => {
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: hdrArgb } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        });
+
+        // Data rows
+        table.forEach((row, i) => {
+          const isGrand = row["Request Owner"] === "Grand Total";
+          const owner   = row["Request Owner"] ?? "";
+          const reqs    = row["Requests"] ?? 0;
+          const avgCT   = row["Avg_CT_Days"];
+          const ctVal   = avgCT !== null && avgCT !== undefined ? avgCT : null;
+          const dataRow = wsSum.addRow([owner, reqs, ctVal]);
+          const btmStyle = isGrand ? "medium" : "thin";
+          const btmArgb  = isGrand ? "FFFF6600" : brdArgb;
+
+          dataRow.height = 16;
+
+          // Col A — Request Owner
+          const cA = dataRow.getCell(1);
+          cA.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          cA.font      = { bold: isGrand, size: 10 };
+          cA.alignment = { horizontal: "left", vertical: "middle" };
+          cA.border    = allBorders(brdArgb, btmStyle, btmArgb);
+
+          // Col B — # of Request
+          const cB = dataRow.getCell(2);
+          cB.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          cB.font      = { bold: isGrand, size: 10 };
+          cB.alignment = { horizontal: "center", vertical: "middle" };
+          cB.border    = allBorders(brdArgb, btmStyle, btmArgb);
+
+          // Col C — Avg CT Days
+          const cC = dataRow.getCell(3);
+          cC.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          cC.font      = { bold: isGrand, size: 10, color: { argb: "FF000000" } };
+          cC.alignment = { horizontal: "right", vertical: "middle" };
+          cC.border    = allBorders(brdArgb, btmStyle, btmArgb);
+          if (ctVal !== null) cC.numFmt = "0.00";
+        });
+
+        // 3 blank separator rows
+        wsSum.addRow([]);
+        wsSum.addRow([]);
+        wsSum.addRow([]);
+
+        // Preview: one table per Request Type, mirroring the sheet's colours
+        preview.summaryAuto.push({
+          title: rt,
+          headerColor: hdrArgb,
+          columns: ["Request Owner", "# of Request", "Average of CT Days"],
+          align: ["left", "center", "right"],
+          rows: table.map(row => {
+            const isGrand = row["Request Owner"] === "Grand Total";
+            const avgCT   = row["Avg_CT_Days"];
+            return {
+              grand: isGrand,
+              values: [
+                row["Request Owner"] ?? "",
+                row["Requests"] ?? 0,
+                avgCT !== null && avgCT !== undefined ? avgCT.toFixed(2) : "",
+              ],
+            };
+          }),
+        });
+      });
+
+      // ── Overall Summary sheet ─────────────────────────────────────────────
+      const wsOverall = wb.addWorksheet("Overall Summary");
+      wsOverall.addRow([]);   // blank row 1
+
+      const ovHdr = wsOverall.addRow(["Metric", "Value"]);
+      ovHdr.eachCell(cell => {
+        cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        cell.font   = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+        cell.border = allBorders("FF4472C4");
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      wsOverall.addRow(["Total Closed Requests", overallTotal]);
+      wsOverall.addRow(["Average CT Days",        overallAvgCT]);
+      wsOverall.addRow([]);
+      wsOverall.addRow([]);
+      wsOverall.addRow([]);
+
+      const rtHdr = wsOverall.addRow(["Request Type", "Requests", "Avg CT Days"]);
+      rtHdr.eachCell(cell => {
+        cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        cell.font   = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+        cell.border = allBorders("FF4472C4");
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      rtSummaryRows.forEach(r => wsOverall.addRow([r["Request Type"], r.Requests, r.Avg_CT_Days]));
+      wsOverall.getColumn(1).width = 58;
+      wsOverall.getColumn(2).width = 14;
+      wsOverall.getColumn(3).width = 14;
+
+      // ── NPS Summary sheet — static values from aggregation (only if NPS file uploaded) ─
+      // Values come directly from npsSummaryRows which uses the two-stage owner lookup
+      // (RAW DATA → fallback file), so this tab is guaranteed to match NPS Comment col A.
+      if (npsSummaryRows && npsSummaryRows.length > 0) {
+        const NPS_HDR = "FF1F7047";   // dark green header
+        const NPS_BRD = "FFA9D18E";   // medium green border
+
+        const wsNps = wb.addWorksheet("NPS Summary");
+        wsNps.getColumn(1).width = 36;
+        wsNps.getColumn(2).width = 14;
+        wsNps.getColumn(3).width = 13;
+        wsNps.getColumn(4).width = 11;
+        wsNps.getColumn(5).width = 13;
+        wsNps.getColumn(6).width = 13;
+
+        // Title row (merged across all 6 columns)
+        const npsTitleRow = wsNps.addRow(["Net Promoter Score (NPS) Summary"]);
+        npsTitleRow.height = 26;
+        wsNps.mergeCells(npsTitleRow.number, 1, npsTitleRow.number, 6);
+        const npsTitleCell = npsTitleRow.getCell(1);
+        npsTitleCell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: NPS_HDR } };
+        npsTitleCell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 13 };
+        npsTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+        // Header row
+        const npsHdrRow = wsNps.addRow(["Request Owner", "Total Ratings", "Promoters", "Passives", "Detractors", "NPS Score"]);
+        npsHdrRow.height = 22;
+        npsHdrRow.eachCell(cell => {
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: NPS_HDR } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        });
+
+        const colAligns = ["left", "center", "center", "center", "center", "center"];
+
+        const npsPreviewRows = [];
+        npsSummaryRows.forEach((row, i) => {
+          const isGrand  = row["Request Owner"] === "Grand Total";
+          const npsVal   = row["NPS Score"];
+          // NPS score colour: green ≥ 50, amber 0–49, red < 0 (Grand Total stays black)
+          const npsColor = isGrand || npsVal === null ? "FF000000"
+            : npsVal >= 50 ? "FF375623"
+            : npsVal >= 0  ? "FF7F6000"
+            :                "FF9C0006";
+
+          const dataRow = wsNps.addRow([
+            row["Request Owner"],
+            row["Total Ratings"],
+            row["Promoters"],
+            row["Passives"],
+            row["Detractors"],
+            npsVal,
+          ]);
+          dataRow.height = 16;
+
+          const btmStyle = isGrand ? "medium" : "thin";
+          const btmArgb  = isGrand ? "FFFF6600" : NPS_BRD;
+
+          dataRow.eachCell((cell, colNum) => {
+            cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+            cell.font      = { bold: isGrand, size: 10,
+                               color: { argb: colNum === 6 ? npsColor : "FF000000" } };
+            cell.alignment = { horizontal: colAligns[colNum - 1] || "left", vertical: "middle" };
+            cell.border    = allBorders(NPS_BRD, btmStyle, btmArgb);
+            if (colNum === 6 && npsVal !== null) cell.numFmt = "0.00";
+          });
+
+          npsPreviewRows.push({
+            grand: isGrand,
+            values: [
+              row["Request Owner"],
+              row["Total Ratings"],
+              row["Promoters"],
+              row["Passives"],
+              row["Detractors"],
+              npsVal !== null ? npsVal.toFixed(2) : "",
+            ],
+          });
+        });
+
+        // Preview: NPS Summary table with dark-green header, matching the sheet
+        preview.npsSummary.push({
+          title: "Net Promoter Score (NPS) Summary",
+          headerColor: NPS_HDR,
+          columns: ["Request Owner", "Total Ratings", "Promoters", "Passives", "Detractors", "NPS Score"],
+          align: colAligns,
+          rows: npsPreviewRows,
+        });
+      }
+
+      // ── NPS Comment sheet (full raw copy) ─────────────────────────────────
+      if (npsCommentRows && npsCommentRows.length > 0 && npsCommentHeaders && npsCommentHeaders.length > 0) {
+        const wsNpsCmt = wb.addWorksheet("NPS Comment");
+
+        // Fixed column widths keyed by header name (includes the 2 prepended columns)
+        const NPS_CMT_WIDTHS = {
+          "Request Owner": 32, "Rating Category": 16,
+          "Name": 32, "Rating Description": 14, "Rated Date": 24, "Rating": 8,
+          "PainPoints": 20, "Original Comment": 40, "Translated Comment": 40,
+          "Feedback Submitter": 30, "Request #": 22, "Link to ES": 22,
+          "Geo": 16, "Market": 22, "Country": 18, "Squad Group": 16,
+          "Squad": 32, "Squad Tier": 10, "Center": 16, "Major Unit": 12,
+          "Unit": 12, "Sub Unit": 12, "Engagement Option": 20,
+          "Request Group": 28, "Request Type": 52, "Deal Desk": 12,
+          "SR Status at Feedback": 22, "SubStatus": 14,
+          "SR Submit Date": 24, "SR Assign Date": 24, "SR Close Date": 24,
+          "Request Owner Manager": 30, "Request Owner Organization": 14,
+          "Customer Name": 36, "Global Buying Group": 18, "Oppty #": 22,
+          "Opportunity Owner": 30, "Opportunity Description": 40,
+          "Channel": 10, "Year Month Rated": 16, "Year Qtr Rated": 14,
+        };
+        npsCommentHeaders.forEach((h, i) => {
+          wsNpsCmt.getColumn(i + 1).width = NPS_CMT_WIDTHS[h] || 18;
+        });
+
+        // Header row (npsCommentHeaders is already an array of strings)
+        const cmtHdrRow = wsNpsCmt.addRow(npsCommentHeaders);
+        cmtHdrRow.height = 20;
+        cmtHdrRow.eachCell(cell => {
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F7047" } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FF1F7047");
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        // Locate which output column holds "Rating" so the formula reference is always correct.
+        // npsCommentHeaders already includes the 2 prepended cols, so the Rating col letter
+        // shifts dynamically (e.g. "D" if Rating was originally col 1, "F" if originally col 3).
+        const ratingColIndex = npsCommentHeaders.findIndex(
+          h => h.toString().trim().toUpperCase() === "RATING"
+        );
+        // Convert 0-based index to Excel column letter (A=1, B=2, …)
+        function colLetter(zeroBasedIdx) {
+          let n = zeroBasedIdx + 1, s = "";
+          while (n > 0) { s = String.fromCharCode(64 + (n % 26 || 26)) + s; n = Math.floor((n - 1) / 26); }
+          return s;
+        }
+        const ratingColLetter = ratingColIndex >= 0 ? colLetter(ratingColIndex) : "F";
+
+        // Write each data row individually so col B can be set as a live formula
+        // inline during row construction — addRows() batch silently drops post-hoc cell writes.
+        npsCommentRows.forEach((rowArr, i) => {
+          const rowNum = i + 2;   // row 1 = header
+          // Build the row values array: col B (index 1) gets a formula object, all others are plain values
+          const values = rowArr.map((v, colIdx) => {
+            if (colIdx === 1) {
+              return { formula: `IF(${ratingColLetter}${rowNum}>=9,"Promoter",IF(${ratingColLetter}${rowNum}<=6,"Detractor","Passive"))` };
+            }
+            return v ?? "";
+          });
+          wsNpsCmt.addRow(values);
+        });
+      }
+
+      // ── Contracts per CSR pivot sheet ─────────────────────────────────────────
+      if (ctrPivot) {
+        const { periods, csrList, periodTotals, grandTotal } = ctrPivot;
+
+        const CTR_HDR  = "FF7030A0";   // purple — year header
+        const CTR_QTR  = "FF9B59B6";   // medium purple — quarter sub-header
+        const CTR_MON  = "FFBE8FD8";   // light purple — month sub-header
+        const CTR_BRD  = "FFCBA6E3";   // border
+        const CTR_TOT  = "FFE8D5F5";   // total column fill
+
+        const wsCtr = wb.addWorksheet("Contracts per CSR");
+
+        // ── Helper: style a header cell ───────────────────────────────────────
+        function ctrHdrCell(cell, fillArgb, text, align = "center") {
+          cell.value     = text;
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: fillArgb } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: align, vertical: "middle", wrapText: true };
+        }
+
+        // ── Build grouped structure: years → quarters → months ────────────────
+        // unique years and quarters in order
+        const years = [...new Set(periods.map(p => p.year))];
+
+        // Row 1: CSR label + Year headers (merged across their months)
+        // Row 2: Quarter sub-headers (merged across their months within the year)
+        // Row 3: Month headers (one per period column) + "Total" column
+        // We build three header arrays then addRow each one
+
+        const r1 = ["CSR"];   // year level
+        const r2 = [""];      // quarter level
+        const r3 = [""];      // month level
+
+        // Track merge ranges: [{row, startCol, endCol, value, fill}]
+        const yearMerges = [];
+        const qtrMerges  = [];
+
+        let colIdx = 2;  // 1-based; col 1 = CSR
+
+        years.forEach(year => {
+          const yearPeriods = periods.filter(p => p.year === year);
+          const yearStart   = colIdx;
+
+          const qtrs = [...new Set(yearPeriods.map(p => p.qtr))];
+          qtrs.forEach(qtr => {
+            const qtrPeriods = yearPeriods.filter(p => p.qtr === qtr);
+            const qtrStart   = colIdx;
+
+            qtrPeriods.forEach(p => {
+              r1.push("");          // filled by merge
+              r2.push("");          // filled by merge
+              r3.push(p.monthName);
+              colIdx++;
+            });
+
+            qtrMerges.push({ startCol: qtrStart, endCol: colIdx - 1, value: qtr, fill: CTR_QTR });
+          });
+
+          yearMerges.push({ startCol: yearStart, endCol: colIdx - 1, value: String(year), fill: CTR_HDR });
+        });
+
+        // "Total" column at the end
+        r1.push(""); r2.push(""); r3.push("Total");
+        const totalColIdx = colIdx;
+
+        // Add the 3 header rows
+        const hdr1Row = wsCtr.addRow(r1);
+        const hdr2Row = wsCtr.addRow(r2);
+        const hdr3Row = wsCtr.addRow(r3);
+        [hdr1Row, hdr2Row, hdr3Row].forEach(row => row.height = 22);
+
+        // Style row 3 month cells + CSR label
+        hdr3Row.eachCell((cell, c) => {
+          const isTotal = c === totalColIdx;
+          cell.fill      = { type: "pattern", pattern: "solid",
+                             fgColor: { argb: c === 1 ? CTR_HDR : isTotal ? CTR_HDR : CTR_MON } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        });
+        // Style CSR cell in rows 1 & 2
+        [hdr1Row, hdr2Row].forEach(row => {
+          const cell = row.getCell(1);
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: CTR_HDR } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        // Apply year merges (row 1)
+        yearMerges.forEach(m => {
+          if (m.startCol < m.endCol) wsCtr.mergeCells(1, m.startCol, 1, m.endCol);
+          const cell = hdr1Row.getCell(m.startCol);
+          ctrHdrCell(cell, m.fill, m.value);
+        });
+        // Apply quarter merges (row 2)
+        qtrMerges.forEach(m => {
+          if (m.startCol < m.endCol) wsCtr.mergeCells(2, m.startCol, 2, m.endCol);
+          const cell = hdr2Row.getCell(m.startCol);
+          ctrHdrCell(cell, m.fill, m.value);
+        });
+        // Style individual quarter cells that weren't merged (single-month quarters)
+        qtrMerges.forEach(m => {
+          if (m.startCol === m.endCol) {
+            const cell = hdr2Row.getCell(m.startCol);
+            ctrHdrCell(cell, m.fill, m.value);
+          }
+        });
+
+        // Merge CSR cell across the 3 header rows
+        wsCtr.mergeCells(1, 1, 3, 1);
+        const csrHdrCell = wsCtr.getCell(1, 1);
+        ctrHdrCell(csrHdrCell, CTR_HDR, "CSR", "center");
+
+        // ── Column widths ─────────────────────────────────────────────────────
+        wsCtr.getColumn(1).width = 22;
+        for (let c = 2; c <= totalColIdx; c++) {
+          wsCtr.getColumn(c).width = c === totalColIdx ? 10 : 10;
+        }
+
+        // ── Data rows ─────────────────────────────────────────────────────────
+        csrList.forEach(({ csr, pMap, total }) => {
+          const vals = [csr];
+          periods.forEach(p => {
+            const key = `${p.year}|${p.qtr}|${p.monthName}`;
+            vals.push(pMap.get(key) ?? 0);
+          });
+          vals.push(total);  // row total
+
+          const dataRow = wsCtr.addRow(vals);
+          dataRow.height = 16;
+          dataRow.eachCell((cell, c) => {
+            const isTotal = c === totalColIdx;
+            cell.fill      = { type: "pattern", pattern: "solid",
+                               fgColor: { argb: isTotal ? CTR_TOT : "FFFFFFFF" } };
+            cell.font      = { bold: isTotal, size: 10 };
+            cell.alignment = { horizontal: c === 1 ? "left" : "center", vertical: "middle" };
+            cell.border    = allBorders(CTR_BRD, "thin", CTR_BRD);
+            if (c > 1 && (cell.value === 0)) cell.value = "";  // hide zeros
+          });
+        });
+
+        // ── Grand Total row ───────────────────────────────────────────────────
+        const gtVals = ["Grand Total"];
+        periods.forEach(p => {
+          const key = `${p.year}|${p.qtr}|${p.monthName}`;
+          gtVals.push(periodTotals.get(key) ?? 0);
+        });
+        gtVals.push(grandTotal);
+
+        const gtRow = wsCtr.addRow(gtVals);
+        gtRow.height = 16;
+        gtRow.eachCell((cell, c) => {
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: CTR_TOT } };
+          cell.font      = { bold: true, size: 10 };
+          cell.alignment = { horizontal: c === 1 ? "left" : "center", vertical: "middle" };
+          cell.border    = allBorders(CTR_BRD, "medium", "FFFF6600");
+        });
+      }
+
+      // ── Contracts MTD sheet ───────────────────────────────────────────────────
+      // Shows current month table, then a separate previous month table below it.
+      if (ctrPivot) {
+        const now      = new Date();
+        const curYear  = now.getFullYear();
+        const curMonth = now.getMonth() + 1;  // 1-based
+
+        // Previous month (handles January → December of prior year)
+        const prevMonth = curMonth === 1 ? 12 : curMonth - 1;
+        const prevYear  = curMonth === 1 ? curYear - 1 : curYear;
+
+        const MONTH_NAMES_ARR = ["January","February","March","April","May","June",
+                                 "July","August","September","October","November","December"];
+
+        // Helper to resolve a period key for any year+month
+        function mtdPeriodKey(y, m) {
+          const QTR_MAP = { 1:"Q1",2:"Q1",3:"Q1",4:"Q2",5:"Q2",6:"Q2",
+                            7:"Q3",8:"Q3",9:"Q3",10:"Q4",11:"Q4",12:"Q4" };
+          const period = ctrPivot.periods.find(p => p.year === y && p.month === m);
+          if (!period) return `${y}|${QTR_MAP[m]}|${MONTH_NAMES_ARR[m-1]}`;
+          return `${y}|${period.qtr}|${MONTH_NAMES_ARR[m-1]}`;
+        }
+
+        const MTD_KEY  = mtdPeriodKey(curYear,  curMonth);
+        const PREV_KEY = mtdPeriodKey(prevYear, prevMonth);
+
+        // Build MTD count per CSR from the pivot data
+        const mtdRows = ctrPivot.csrList
+          .map(({ csr, pMap }) => ({ csr, count: pMap.get(MTD_KEY) ?? 0 }))
+          .filter(r => r.count > 0)
+          .sort((a, b) => b.count - a.count);
+
+        const mtdTotal = mtdRows.reduce((s, r) => s + r.count, 0);
+
+        // Build previous month count per CSR
+        const prevRows = ctrPivot.csrList
+          .map(({ csr, pMap }) => ({ csr, count: pMap.get(PREV_KEY) ?? 0 }))
+          .filter(r => r.count > 0)
+          .sort((a, b) => b.count - a.count);
+
+        const prevTotal = prevRows.reduce((s, r) => s + r.count, 0);
+
+        if (mtdRows.length > 0 || prevRows.length > 0) {
+          const sheetTitle     = `${MONTH_NAMES_ARR[curMonth-1]}  ${curYear} MTD`;
+          const prevSheetTitle = `${MONTH_NAMES_ARR[prevMonth-1]} ${prevYear} MTD`;
+
+          const CTR_HDR = "FF7030A0";
+          const CTR_BRD = "FFCBA6E3";
+
+          const wsMtd = wb.addWorksheet("Contracts MTD");
+
+          // ── Current month table ──────────────────────────────────────────────
+          if (mtdRows.length > 0) {
+            // Title row
+            const titleRow = wsMtd.addRow([sheetTitle]);
+            titleRow.getCell(1).font      = { bold: true, size: 12 };
+            titleRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+            titleRow.height = 20;
+
+            // Header row
+            const mtdHdrRow = wsMtd.addRow(["CSR", "# of Contracts (MTD)"]);
+            mtdHdrRow.height = 22;
+            mtdHdrRow.eachCell(cell => {
+              cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: CTR_HDR } };
+              cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+              cell.border    = allBorders("FFFFFFFF");
+              cell.alignment = { horizontal: "center", vertical: "middle" };
+            });
+
+            // Data rows
+            mtdRows.forEach(row => {
+              const dataRow = wsMtd.addRow([row.csr, row.count]);
+              dataRow.height = 16;
+
+              const cA = dataRow.getCell(1);
+              cA.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cA.font      = { size: 10 };
+              cA.alignment = { horizontal: "left", vertical: "middle" };
+              cA.border    = allBorders(CTR_BRD, "thin", CTR_BRD);
+
+              const cB = dataRow.getCell(2);
+              cB.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cB.font      = { size: 10 };
+              cB.alignment = { horizontal: "center", vertical: "middle" };
+              cB.border    = allBorders(CTR_BRD, "thin", CTR_BRD);
+            });
+
+            // Grand Total row
+            const mtdGtRow = wsMtd.addRow(["Grand Total", mtdTotal]);
+            mtdGtRow.height = 16;
+            mtdGtRow.eachCell((cell, c) => {
+              cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cell.font      = { bold: true, size: 10 };
+              cell.alignment = { horizontal: c === 1 ? "left" : "center", vertical: "middle" };
+              cell.border    = allBorders(CTR_BRD, "medium", "FFFF6600");
+            });
+
+            // Preview: current month table
+            preview.contractsMtd.push({
+              title: sheetTitle,
+              headerColor: CTR_HDR,
+              columns: ["CSR", "# of Contracts (MTD)"],
+              align: ["left", "center"],
+              rows: [
+                ...mtdRows.map(row => ({ values: [row.csr, row.count] })),
+                { grand: true, values: ["Grand Total", mtdTotal] },
+              ],
+            });
+          }
+
+          // ── Previous month table ─────────────────────────────────────────────
+          if (prevRows.length > 0) {
+            // Blank separator row
+            wsMtd.addRow([]);
+
+            // Title row
+            const prevTitleRow = wsMtd.addRow([prevSheetTitle]);
+            prevTitleRow.getCell(1).font      = { bold: true, size: 12 };
+            prevTitleRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+            prevTitleRow.height = 20;
+
+            // Header row
+            const prevHdrRow = wsMtd.addRow(["CSR", "# of Contracts (MTD)"]);
+            prevHdrRow.height = 22;
+            prevHdrRow.eachCell(cell => {
+              cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: CTR_HDR } };
+              cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+              cell.border    = allBorders("FFFFFFFF");
+              cell.alignment = { horizontal: "center", vertical: "middle" };
+            });
+
+            // Data rows
+            prevRows.forEach(row => {
+              const dataRow = wsMtd.addRow([row.csr, row.count]);
+              dataRow.height = 16;
+
+              const cA = dataRow.getCell(1);
+              cA.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cA.font      = { size: 10 };
+              cA.alignment = { horizontal: "left", vertical: "middle" };
+              cA.border    = allBorders(CTR_BRD, "thin", CTR_BRD);
+
+              const cB = dataRow.getCell(2);
+              cB.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cB.font      = { size: 10 };
+              cB.alignment = { horizontal: "center", vertical: "middle" };
+              cB.border    = allBorders(CTR_BRD, "thin", CTR_BRD);
+            });
+
+            // Grand Total row
+            const prevGtRow = wsMtd.addRow(["Grand Total", prevTotal]);
+            prevGtRow.height = 16;
+            prevGtRow.eachCell((cell, c) => {
+              cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+              cell.font      = { bold: true, size: 10 };
+              cell.alignment = { horizontal: c === 1 ? "left" : "center", vertical: "middle" };
+              cell.border    = allBorders(CTR_BRD, "medium", "FFFF6600");
+            });
+
+            // Preview: previous month table
+            preview.contractsMtd.push({
+              title: prevSheetTitle,
+              headerColor: CTR_HDR,
+              columns: ["CSR", "# of Contracts (MTD)"],
+              align: ["left", "center"],
+              rows: [
+                ...prevRows.map(row => ({ values: [row.csr, row.count] })),
+                { grand: true, values: ["Grand Total", prevTotal] },
+              ],
+            });
+          }
+
+          wsMtd.getColumn(1).width = 24;
+          wsMtd.getColumn(2).width = 22;
+        }
+      }
+
+      // ── Aging Report sheets (one per Request Type, with conditional formatting) ─
+      if (agingFileBuffer) {
+        let agingWb;
+        try {
+          agingWb = XLSX.read(new Uint8Array(agingFileBuffer), { type: "array" });
+        } catch (e) {
+          throw new Error("Could not parse aging report file: " + e.message);
+        }
+
+        // Read first sheet as array-of-arrays
+        const agingWs  = agingWb.Sheets[agingWb.SheetNames[0]];
+        const agingAoa = XLSX.utils.sheet_to_json(agingWs, { header: 1, defval: "" });
+        if (agingAoa.length < 2) throw new Error("Aging report file appears empty.");
+
+        const agingHdr = agingAoa[0].map(h => h.toString().trim());
+
+        // Auto-detect key columns by name (case-insensitive substring match)
+        function agingCol(keywords) {
+          return agingHdr.findIndex(h =>
+            keywords.some(k => h.toUpperCase().includes(k.toUpperCase()))
+          );
+        }
+        // Exact match (trimmed, case-insensitive) — used when substring would over-match
+        function agingColExact(name) {
+          return agingHdr.findIndex(h => h.trim().toUpperCase() === name.toUpperCase());
+        }
+        const RT_COL   = agingCol(["REQUEST TYPE"]);
+        const AGE_COL  = agingCol(["AGING DURATION", "AGING DUR"]);
+        const UPD_COL  = agingCol(["LAST UPDATE DURATION", "LAST UPDATE DUR"]);
+
+        if (RT_COL  < 0) throw new Error("Aging report: 'Request Type' column not found.");
+        if (AGE_COL < 0) throw new Error("Aging report: 'Aging Duration' column not found.");
+        if (UPD_COL < 0) throw new Error("Aging report: 'Last Update Duration' column not found.");
+
+        // Columns to keep (in display order) — matched by keyword against source header
+        const AGING_KEEP_KEYWORDS = [
+          ["REQUEST TYPE"],
+          ["DEAL ID", "DEAL#", "DEAL #"],
+          ["CUSTOMER NAME", "CUSTOMER"],
+          ["CURR", "CURRENCY"],
+          ["TCV"],
+          ["REQUEST #", "REQUEST NUMBER", "REQUEST NO"],
+          ["REQUEST OWNER"],   // resolved via agingColExact below — placeholder kept for index alignment
+          ["AGING DURATION", "AGING DUR"],
+          ["LAST UPDATE DURATION", "LAST UPDATE DUR"],
+        ];
+        const agingKeepIdx = AGING_KEEP_KEYWORDS.map(kws => agingCol(kws));
+        // Override "Request Owner" slot with exact match to avoid hitting "Request Owner Name"
+        const ownerExactIdx = agingColExact("Request Owner");
+        const ownerSlot = AGING_KEEP_KEYWORDS.findIndex(kws => kws.includes("REQUEST OWNER"));
+        if (ownerSlot >= 0 && ownerExactIdx >= 0) agingKeepIdx[ownerSlot] = ownerExactIdx;
+        // Build the filtered header (keep original label; skip any column not found)
+        const agingFilteredHdr = agingKeepIdx
+          .filter(i => i >= 0)
+          .map(i => agingHdr[i]);
+        // Log detected headers to console to help diagnose missing columns
+        console.log("Aging source headers:", agingHdr);
+        console.log("Aging keep indices:", agingKeepIdx, "→", agingFilteredHdr);
+        // Re-derive RT / AGE / UPD positions in the *filtered* header
+        const fRT_COL  = agingFilteredHdr.findIndex(h => h.toUpperCase().includes("REQUEST TYPE"));
+        const fAGE_COL = agingFilteredHdr.findIndex(h => h.toUpperCase().includes("AGING DURATION") || h.toUpperCase().includes("AGING DUR"));
+        const fUPD_COL = agingFilteredHdr.findIndex(h => h.toUpperCase().includes("LAST UPDATE DURATION") || h.toUpperCase().includes("LAST UPDATE DUR"));
+
+        // Filter data rows (skip fully blank rows)
+        const agingData = agingAoa.slice(1).filter(row =>
+          row.some(c => c !== null && c !== "")
+        );
+
+        // Fill-down Request Owner: carry the last non-blank value into blank cells below
+        // Use exact match so we target "Request Owner", not "Request Owner Name"
+        const OWNER_COL = ownerExactIdx >= 0 ? ownerExactIdx : agingCol(["REQUEST OWNER"]);
+        if (OWNER_COL >= 0) {
+          let lastOwner = "";
+          agingData.forEach(row => {
+            const v = (row[OWNER_COL] ?? "").toString().trim();
+            if (v) {
+              lastOwner = v;
+            } else {
+              row[OWNER_COL] = lastOwner;
+            }
+          });
+        }
+
+        // Group rows by Request Type (preserve insertion order within each group)
+        const RT_ORDER = [
+          "AR Dispute Management",
+          "Billing",
+          "Contract or Work Number Closure / Management",
+          "Contract Registration / Order / Purchase Order (PO) Submission",
+        ];
+        const rtGroups = new Map();
+        agingData.forEach(row => {
+          const rt = (row[RT_COL] ?? "").toString().trim();
+          if (!rt) return;
+          if (!rtGroups.has(rt)) rtGroups.set(rt, []);
+          rtGroups.get(rt).push(row);
+        });
+
+        // Sort groups: known types first in order, then alphabetically
+        const sortedRTs = [...rtGroups.keys()].sort((a, b) => {
+          const ia = RT_ORDER.indexOf(a), ib = RT_ORDER.indexOf(b);
+          if (ia >= 0 && ib >= 0) return ia - ib;
+          if (ia >= 0) return -1;
+          if (ib >= 0) return  1;
+          return a.localeCompare(b);
+        });
+
+        // ── Conditional formatting rules (per row) ──────────────────────────
+        // Returns { rowFill, ageFill, updFill } ARGB strings or null
+        // Rules applied in priority order matching the CF Rules Manager screenshot:
+        //   Pink  = approaching threshold
+        //   Red   = exceeded threshold
+        //   Yellow on UPD col = last-update exceeded
+        function agingRowFills(rt, age, upd) {
+          const a = parseFloat(age), u = parseFloat(upd);
+
+          // ── Yellow on Last Update Duration column ─────────────────────────
+          // Rule 1: RT is one of the 4 main types AND Last Update Duration > 2.5
+          // Rule 2: RT = "Non-Transactional Request" AND Last Update Duration > 5
+          let updFill = null;
+          const mainTypes = [
+            "Contract or Work Number Closure / Management",
+            "Billing",
+            "Contract Registration / Order / Purchase Order (PO) Submission",
+            "AR Dispute Management",
+          ];
+          if (isFinite(u)) {
+            if (mainTypes.includes(rt) && u > 2) {
+              updFill = "FFFFFF00";  // yellow
+            } else if (rt === "Non-Transactional Request" && u > 5) {
+              updFill = "FFFFFF00";  // yellow
+            }
+          }
+
+          // ── Row fill (Applies to $A:$BC) ──────────────────────────────────
+          // Priority: red > pink (red overrides pink if both match)
+          let rowFill = null;
+
+          // Pink rules (approaching threshold)
+          if (rt === "AR Dispute Management" && isFinite(a) && a > 4 && a <= 4.99) {
+            rowFill = "FFFCE4D6";  // light pink/salmon
+          } else if ((rt === "Contract or Work Number Closure / Management" || rt === "Billing") &&
+                     isFinite(a) && a > 1.2 && a <= 1.49) {
+            rowFill = "FFFCE4D6";
+          } else if (rt === "Contract Registration / Order / Purchase Order (PO) Submission" &&
+                     isFinite(a) && a > 1.5 && a <= 1.99) {
+            rowFill = "FFFCE4D6";
+          }
+
+          // Red/orange rules (exceeded threshold — override pink)
+          if (rt === "AR Dispute Management" && isFinite(a) && a > 5) {
+            rowFill = "FFFFC7CE";  // light red
+          } else if ((rt === "Contract or Work Number Closure / Management" || rt === "Billing") &&
+                     isFinite(a) && a > 1.5) {
+            rowFill = "FFFFC7CE";
+          } else if (rt === "Contract Registration / Order / Purchase Order (PO) Submission" &&
+                     isFinite(a) && a > 2) {
+            rowFill = "FFFFC7CE";
+          }
+
+          return { rowFill, updFill };
+        }
+
+        // ── Colours for per-RT header bands (matching Summary_Auto themes) ──
+        const RT_THEMES = {
+          "AR Dispute Management":                                                  { hdr: "FFE36C09" },
+          "Billing":                                                                { hdr: "FF4472C4" },
+          "Contract or Work Number Closure / Management":                           { hdr: "FF632523" },
+          "Contract Registration / Order / Purchase Order (PO) Submission":         { hdr: "FF76923C" },
+        };
+        const DEFAULT_HDR = "FF44546A";
+
+        // ── Aging RAW DATA sheet ─────────────────────────────────────────────
+        const wsAgingRaw = wb.addWorksheet("Aging Raw Data");
+        const agingRawHdrRow = wsAgingRaw.addRow(agingHdr);
+        agingRawHdrRow.height = 20;
+        agingRawHdrRow.eachCell(cell => {
+          cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF44546A" } };
+          cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+          cell.border    = allBorders("FFFFFFFF");
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        });
+        // Write all data rows (unsorted, all columns)
+        agingData.forEach(row => {
+          const dataRow = wsAgingRaw.addRow(row.map(v => {
+            if (typeof v === "number" && !Number.isInteger(v)) return Math.round(v * 100) / 100;
+            return v ?? "";
+          }));
+          dataRow.height = 15;
+          dataRow.eachCell(cell => {
+            cell.font      = { size: 10 };
+            cell.alignment = { vertical: "middle" };
+            cell.border    = allBorders("FFD9D9D9", "thin", "FFD9D9D9");
+          });
+        });
+        // Autofit all columns based on header + data
+        agingHdr.forEach((h, i) => {
+          const maxLen = agingData.reduce((m, row) => {
+            const v = row[i] ?? "";
+            return Math.max(m, String(v).length);
+          }, h.length);
+          wsAgingRaw.getColumn(i + 1).width = Math.min(maxLen + 3, 60);
+        });
+
+        // Write one sheet per Request Type
+        sortedRTs.forEach(rt => {
+          const rows    = rtGroups.get(rt);
+          const theme   = RT_THEMES[rt] || { hdr: DEFAULT_HDR };
+          // Strip illegal Excel sheet-name characters, then truncate to 31 chars.
+          // Re-sanitize after truncation as a defensive safeguard (in case truncation
+          // ever lands on a boundary that reintroduces an illegal character sequence).
+          const ILLEGAL_SHEET_CHARS = /[*?:\\/\[\]]/g;
+          const sanitized = rt.replace(ILLEGAL_SHEET_CHARS, "-").trim();
+          let sName = sanitized.length > 31 ? sanitized.substring(0, 28) + "…" : sanitized;
+          sName = sName.replace(ILLEGAL_SHEET_CHARS, "-");
+          const wsAging = wb.addWorksheet(sName);
+
+          // Header row
+          const aHdrRow = wsAging.addRow(agingFilteredHdr);
+          aHdrRow.height = 20;
+          aHdrRow.eachCell(cell => {
+            cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: theme.hdr } };
+            cell.font      = { color: { argb: "FFFFFFFF" }, bold: true, size: 10 };
+            cell.border    = allBorders("FFFFFFFF");
+            cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+          });
+
+          // Sort rows by Aging Duration descending (largest first)
+          const sortedRows = [...rows].sort((a, b) => {
+            const va = parseFloat(a[AGE_COL]) || 0;
+            const vb = parseFloat(b[AGE_COL]) || 0;
+            return vb - va;
+          });
+
+          // Autofit columns: measure header + every data cell, cap at 60
+          const validKeepIdx = agingKeepIdx.filter(i => i >= 0);
+          const agingColWidths = agingFilteredHdr.map(h => h.length);
+          sortedRows.forEach(row => {
+            validKeepIdx.forEach((srcIdx, colPos) => {
+              const v = row[srcIdx] ?? "";
+              agingColWidths[colPos] = Math.max(agingColWidths[colPos], String(v).length);
+            });
+          });
+          agingColWidths.forEach((w, i) => {
+            wsAging.getColumn(i + 1).width = Math.min(w + 3, 60);
+          });
+
+          // Preview: cap rows shown to keep the panel responsive on large files
+          const AGING_PREVIEW_LIMIT = Infinity;
+          const agingPreviewRows = [];
+
+          // Data rows with conditional formatting applied per-row
+          sortedRows.forEach((row, rowIdx) => {
+            const age = row[AGE_COL];
+            const upd = row[UPD_COL];
+            const { rowFill, updFill } = agingRowFills(rt, age, upd);
+
+            // Project row down to only the kept columns; round decimals to 2 dp
+            const filteredRow = agingKeepIdx
+              .filter(i => i >= 0)
+              .map(i => {
+                const v = row[i] ?? "";
+                if (typeof v === "number" && !Number.isInteger(v)) {
+                  return Math.round(v * 100) / 100;
+                }
+                return v;
+              });
+
+            const dataRow = wsAging.addRow(filteredRow);
+            dataRow.height = 15;
+
+            dataRow.eachCell((cell, colNum) => {
+              const isUpdCol = colNum === fUPD_COL + 1;  // 1-based
+              const fill     = isUpdCol && updFill ? updFill
+                             : rowFill             ? rowFill
+                             : "FFFFFFFF";
+              cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
+              cell.font      = { size: 10 };
+              cell.alignment = { vertical: "middle" };
+              cell.border    = allBorders("FFD9D9D9", "thin", "FFD9D9D9");
+            });
+
+            if (rowIdx < AGING_PREVIEW_LIMIT) {
+              const cellBg = {};
+              if (updFill) cellBg[fUPD_COL] = updFill;
+              agingPreviewRows.push({
+                values: filteredRow,
+                bg: rowFill || null,
+                cellBg,
+              });
+            }
+          });
+
+          // Fixed column widths (%) keyed by header name, so every aging table
+          // in the preview lines up consistently regardless of content length.
+          const AGING_COL_WIDTHS = {
+            "Request Type": 14, "Customer Name": 20, "Curr": 6, "Currency": 6,
+            "TCV": 9, "Request #": 13, "Request Owner": 16,
+            "Aging Duration": 11, "Last Update Duration": 11,
+          };
+          const AGING_COL_ALIGN = {
+            "Request Type": "left", "Customer Name": "left", "Curr": "center", "Currency": "center",
+            "TCV": "right", "Request #": "left", "Request Owner": "left",
+            "Aging Duration": "right", "Last Update Duration": "right",
+          };
+          // Fallback: distribute remaining width evenly across unmatched columns
+          const matchedWidths = agingFilteredHdr.map(h => AGING_COL_WIDTHS[h] ?? null);
+          const usedWidth   = matchedWidths.reduce((s, w) => s + (w || 0), 0);
+          const unmatchedN  = matchedWidths.filter(w => w === null).length;
+          const fallbackW   = unmatchedN > 0 ? Math.max((100 - usedWidth) / unmatchedN, 5) : 0;
+          const agingColWidthsPct = matchedWidths.map(w => w ?? fallbackW);
+
+          // Preview-only: for these Request Types, drop the "Request Type" column
+          // entirely (the section title above the table already shows the RT,
+          // so repeating it in every row wastes space). The Excel sheet itself
+          // (written above via wsAging.addRow) is unaffected.
+          const HIDE_RT_COL_IN_PREVIEW = [
+            "AR Dispute Management",
+            "Billing",
+            "Contract or Work Number Closure / Management",
+            "Contract Registration / Order / Purchase Order (PO) Submission",
+            "Non-Transactional Request",
+          ];
+          const hideRtCol = fRT_COL >= 0 && HIDE_RT_COL_IN_PREVIEW.includes(rt);
+
+          const previewColumns = hideRtCol
+            ? agingFilteredHdr.filter((_, i) => i !== fRT_COL)
+            : agingFilteredHdr;
+          const previewAlign = hideRtCol
+            ? agingFilteredHdr.map(h => AGING_COL_ALIGN[h] || "left").filter((_, i) => i !== fRT_COL)
+            : agingFilteredHdr.map(h => AGING_COL_ALIGN[h] || "left");
+          const rawColWidths = hideRtCol
+            ? agingColWidthsPct.filter((_, i) => i !== fRT_COL)
+            : agingColWidthsPct;
+          // Re-normalize remaining widths to sum to 100% after removing a column
+          const widthSum = rawColWidths.reduce((s, w) => s + w, 0);
+          const previewColWidths = hideRtCol && widthSum > 0
+            ? rawColWidths.map(w => (w / widthSum) * 100)
+            : rawColWidths;
+          const previewRows = hideRtCol
+            ? agingPreviewRows.map(r => {
+                const values = r.values.filter((_, i) => i !== fRT_COL);
+                const cellBg = {};
+                Object.entries(r.cellBg || {}).forEach(([k, v]) => {
+                  const idx = Number(k);
+                  cellBg[idx > fRT_COL ? idx - 1 : idx] = v;
+                });
+                return { ...r, values, cellBg };
+              })
+            : agingPreviewRows;
+
+          preview.agingByRt[sName] = {
+            title: rt,
+            headerColor: theme.hdr,
+            columns: previewColumns,
+            align: previewAlign,
+            colWidths: previewColWidths,
+            rows: previewRows,
+            note: sortedRows.length > AGING_PREVIEW_LIMIT
+              ? `Showing first ${AGING_PREVIEW_LIMIT} of ${sortedRows.length} rows`
+              : null,
+          };
+        });
+      }
+
+      setProgress(90, true);
+      setStatus("Preparing download…", "");
+
+      // ── Render the Report Preview side panel ────────────────────────────────
+      renderPreview([
+        ...preview.summaryAuto,
+        ...preview.npsSummary,
+        ...preview.contractsMtd,
+        ...Object.values(preview.agingByRt),
+      ]);
+
+      // ── Feed computed metrics into the MTD Paragraph section ─────────────────
+      if (typeof window._mtdAutoFill === 'function') {
+        // Map rtSummaryRows → keyed data object
+        const RT_KEY_MAP = {
+          "Contract Registration / Order / Purchase Order (PO) Submission": { days: 'contractRegDays', srs: 'contractRegSRs' },
+          "Billing":                                                         { days: 'billingDays',      srs: 'billingSRs'      },
+          "AR Dispute Management":                                            { days: 'arDays',          srs: 'arSRs'           },
+          "Contract or Work Number Closure / Management":                    { days: 'closureDays',     srs: 'closureSRs'      },
+        };
+        const autoData = {};
+        for (const row of rtSummaryRows) {
+          const map = RT_KEY_MAP[row["Request Type"]];
+          if (!map) continue;
+          if (row.Avg_CT_Days !== null && row.Avg_CT_Days !== undefined)
+            autoData[map.days] = row.Avg_CT_Days;
+          if (row.Requests !== null && row.Requests !== undefined)
+            autoData[map.srs] = row.Requests;
+        }
+        // NPS totals (only when NPS file was provided)
+        if (totNps !== null && totNps !== undefined) {
+          autoData.npsScore   = totNps;
+          autoData.npsRatings = totTotal;
+        }
+        window._mtdAutoFill(autoData);
+      }
+
+      // ── Download ──────────────────────────────────────────────────────────
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement("a");
+      a.href     = url;
+      a.download = "Daily_Metrics_Automated_Report.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setProgress(100, true);
+      setStatus("Report downloaded successfully!", "success");
+      setTimeout(() => setProgress(0, false), 2000);
+      generateBtn.disabled = false;
+
+  } catch (err) {
+    setStatus("Error: " + err.message, "error");
+    setProgress(0, false);
+    generateBtn.disabled = false;
+    console.error(err);
+  }
+}
+</script>
+</body>
+</html>
